@@ -503,7 +503,15 @@ function veDong(
   kq.dong.forEach((d, i) => ctx.fillText(d, cx, dau + i * buoc));
 }
 
-function veNhan(o: O, goc: boolean): HTMLCanvasElement {
+/**
+ * Vẽ nhãn một ô.
+ *
+ * `dao` dành cho hai cạnh ở phía xa người xem. Camera cố định nên hai cạnh đó
+ * quay lưng lại: chữ vẽ bình thường sẽ hiện ngược đầu. Khi `dao` bật, toàn bộ
+ * nội dung được vẽ xoay 180° ngay trong canvas, nên lên màn hình thì đọc xuôi
+ * mà dải màu vẫn nằm đúng mép trong của ô.
+ */
+function veNhan(o: O, goc: boolean, dao: boolean): HTMLCanvasElement {
   // Canvas lớn hơn tỉ lệ ô thật để chữ còn nét khi thu nhỏ xuống màn hình.
   const W = goc ? 384 : 240;
   const H = 384;
@@ -522,7 +530,9 @@ function veNhan(o: O, goc: boolean): HTMLCanvasElement {
     g0.addColorStop(0, `${mau}26`); g0.addColorStop(1, `${mau}0d`);
     x.fillStyle = g0; x.fillRect(0, 0, W, H);
     x.save();
-    x.translate(W / 2, H / 2); x.rotate(-Math.PI / 4);
+    // Ô góc nằm chéo nên chữ xoay 45°; cạnh xa thì xoay thêm nửa vòng.
+    x.translate(W / 2, H / 2);
+    x.rotate(dao ? Math.PI * 0.75 : -Math.PI / 4);
     x.textAlign = "center"; x.textBaseline = "middle";
     x.fillStyle = mau;
     x.font = `700 92px ${BALOO}`;
@@ -539,54 +549,62 @@ function veNhan(o: O, goc: boolean): HTMLCanvasElement {
     return c;
   }
 
+  if (dao) {
+    x.translate(W / 2, H / 2);
+    x.rotate(Math.PI);
+    x.translate(-W / 2, -H / 2);
+  }
+  /** Toạ độ dọc mong muốn trên màn hình, đổi sang toạ độ canvas. */
+  const Y = (v: number) => (dao ? H - v : v);
+
   // Dải màu nhóm nằm ở mép trong của ô. Tên nhóm không in ở đây nữa — màu đã
   // nói rõ rồi, bỏ đi thì tên thành phố có thêm chỗ để phóng to.
   const daiH = o.loai === "dat" ? 58 : 50;
-  x.fillStyle = mau; x.fillRect(0, 0, W, daiH);
-  x.fillStyle = "rgba(255,255,255,.22)"; x.fillRect(0, 0, W, 6);
-  x.fillStyle = "rgba(0,0,0,.16)"; x.fillRect(0, daiH - 6, W, 6);
+  x.fillStyle = mau; x.fillRect(0, Y(daiH), W, daiH);
+  x.fillStyle = "rgba(255,255,255,.22)"; x.fillRect(0, Y(6), W, 6);
+  x.fillStyle = "rgba(0,0,0,.16)"; x.fillRect(0, Y(daiH), W, 6);
   x.textAlign = "center"; x.textBaseline = "middle";
 
   if (o.loai === "dat") {
     x.fillStyle = "#13203a";
-    veDong(x, xepDong(x, o.ten, W - 22, 68, "800", BALOO, 2), W / 2, 176, "800", BALOO);
+    veDong(x, xepDong(x, o.ten, W - 22, 68, "800", BALOO, 2), W / 2, Y(176), "800", BALOO);
 
     x.strokeStyle = `${mau}66`; x.lineWidth = 4;
-    x.beginPath(); x.moveTo(W / 2 - 44, 262); x.lineTo(W / 2 + 44, 262); x.stroke();
+    x.beginPath(); x.moveTo(W / 2 - 44, Y(262)); x.lineTo(W / 2 + 44, Y(262)); x.stroke();
 
     x.fillStyle = mau;
     x.font = `800 62px ${BALOO}`;
-    x.fillText(`${o.gia}K`, W / 2, 324);
+    x.fillText(`${o.gia}K`, W / 2, Y(324));
   } else if (o.loai === "bien" || o.loai === "tienich") {
     x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 22px ${BVP}`;
-    x.fillText(tenLoaiO(o).toUpperCase(), W / 2, daiH / 2);
+    x.fillText(tenLoaiO(o).toUpperCase(), W / 2, Y(daiH / 2));
 
     x.fillStyle = mau; x.font = `700 68px ${BALOO}`;
-    x.fillText(o.loai === "bien" ? "⚓" : o.ten.includes("ĐIỆN") ? "⚡" : "💧", W / 2, 128);
+    x.fillText(o.loai === "bien" ? "⚓" : o.ten.includes("ĐIỆN") ? "⚡" : "💧", W / 2, Y(128));
 
     x.fillStyle = "#13203a";
-    veDong(x, xepDong(x, o.ten, W - 18, 44, "800", BALOO, 2), W / 2, 226, "800", BALOO);
+    veDong(x, xepDong(x, o.ten, W - 18, 44, "800", BALOO, 2), W / 2, Y(226), "800", BALOO);
 
     x.fillStyle = mau; x.font = `800 50px ${BALOO}`;
-    x.fillText(`${o.gia}K`, W / 2, 330);
+    x.fillText(`${o.gia}K`, W / 2, Y(330));
   } else {
     const nhan: Record<string, string> = { cohoi: "CƠ HỘI", khivan: "KHÍ VẬN", thue: "THUẾ" };
     const bieu: Record<string, string> = { cohoi: "?", khivan: "✦", thue: "₫" };
     x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 22px ${BVP}`;
-    x.fillText(nhan[o.loai], W / 2, daiH / 2);
+    x.fillText(nhan[o.loai], W / 2, Y(daiH / 2));
 
     const cy = o.loai === "thue" ? 196 : 228;
     x.fillStyle = `${mau}22`;
-    x.beginPath(); x.arc(W / 2, cy, o.loai === "thue" ? 74 : 88, 0, Math.PI * 2); x.fill();
+    x.beginPath(); x.arc(W / 2, Y(cy), o.loai === "thue" ? 74 : 88, 0, Math.PI * 2); x.fill();
     x.fillStyle = mau;
     x.font = `800 ${o.loai === "thue" ? 108 : 130}px ${BALOO}`;
-    x.fillText(bieu[o.loai], W / 2, cy + 8);
+    x.fillText(bieu[o.loai], W / 2, Y(cy + 8));
 
     if (o.loai === "thue") {
       x.fillStyle = "#13203a";
-      veDong(x, xepDong(x, o.ten, W - 16, 34, "800", BALOO, 2), W / 2, 306, "800", BALOO);
+      veDong(x, xepDong(x, o.ten, W - 16, 34, "800", BALOO, 2), W / 2, Y(306), "800", BALOO);
       x.fillStyle = "#8d9bad"; x.font = `700 28px ${BVP}`;
-      x.fillText(`Nộp ${o.thue}K`, W / 2, 356);
+      x.fillText(`Nộp ${o.thue}K`, W / 2, Y(356));
     }
   }
   return c;
@@ -854,7 +872,9 @@ export class BanCo3D {
       g.add(than);
       this.oMeshes.push(than);
 
-      const tex = new THREE.CanvasTexture(veNhan(o, v.goc));
+      // Camera cố định nhìn từ hướng +x +z, nên hai cạnh tây (ô 9–17) và bắc
+      // (ô 18–26) quay lưng lại người xem: nhãn của chúng phải vẽ đảo đầu.
+      const tex = new THREE.CanvasTexture(veNhan(o, v.goc, i >= 9 && i <= 26));
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
       const nhan = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.26, d - 0.26),
