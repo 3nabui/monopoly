@@ -33,12 +33,19 @@ server lẫn PostgreSQL chỉ từ repo.
 Bảng trong database **tự dựng lúc server khởi động**, không phải chạy
 migration bằng tay.
 
-Hai điểm của gói free cần biết trước:
+Bốn điểm của gói free cần biết trước:
 
-- Web service **ngủ sau 15 phút không ai vào**, lần sau đánh thức mất gần
-  một phút. Đang chơi mà cả bàn rời đi rồi quay lại là mất phòng. Chơi thật
-  thì nâng lên gói Starter (hiện khoảng 7 đô một tháng) để server không ngủ.
-- Database free của Render **hết hạn sau 30 ngày**, phải tạo lại.
+- Web service **ngủ sau 15 phút không có lưu lượng vào**. Tin nhắn WebSocket
+  cũng tính là lưu lượng, nên đang chơi thì không ngủ; nhưng cả bàn rời đi
+  rồi quay lại sau là mất phòng, và lần đánh thức mất khoảng một phút. Chơi
+  thật thì nâng lên gói Starter để server không ngủ.
+- Mỗi workspace được **750 giờ chạy miễn phí mỗi tháng**. Một server chạy
+  suốt ngày đêm hết khoảng 730 giờ, nên một service thì vừa đủ.
+- Database free **hết hạn sau 30 ngày**. Sau đó có 14 ngày để nâng gói;
+  quá hạn đó Render **xoá hẳn database cùng toàn bộ dữ liệu**. Lịch sử ván
+  đấu mất, nhưng game vẫn chơi được bình thường.
+- Mỗi workspace chỉ được **một database free**, dung lượng 1 GB, không sao
+  lưu.
 
 ### Chỗ khác
 
@@ -78,7 +85,7 @@ docker run -p 2567:2567 -e JWT_SECRET=... -e SESSION_SECRET=... \
 | `OAUTH_CLIENT_ID` | Không | Thiếu thì nút đăng nhập Google tắt. |
 | `OAUTH_CLIENT_SECRET` | Không | Đi cùng cái trên. |
 | `BACKEND_URL` | Không | Địa chỉ công khai của chính server. Trên Render tự lấy từ `RENDER_EXTERNAL_URL`, chỗ khác phải đặt tay. |
-| `PORT` | Không | Mặc định 2567. Hầu hết dịch vụ tự đặt. |
+| `PORT` | Không | Mặc định 2567. Render **không** tự đặt biến này — `render.yaml` khai sẵn rồi; chỗ khác thì tự đặt cho khớp cổng dịch vụ mong đợi. |
 | `NODE_ENV` | Nên | Đặt `production` để tắt `/monitor` và `/playground`. |
 
 Hai chuỗi bí mật sinh bằng:

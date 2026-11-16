@@ -14,15 +14,23 @@ services:
     plan: free                 # đổi sang starter khi muốn server không ngủ
     healthCheckPath: /health
 
-    # Colyseus giữ danh sách phòng trong bộ nhớ tiến trình. Chạy từ hai bản
-    # trở lên thì mỗi bản thấy một danh sách phòng khác nhau, người chơi vào
-    # nhầm bản là không gặp được nhau. Muốn chạy nhiều bản thì phải thêm
-    # Redis presence và Redis driver trước đã.
-    numInstances: 1
+    # Cố ý KHÔNG khai numInstances. Render mặc định một bản, mà gói free lại
+    # không cho chạy nhiều hơn một bản nên khai vào chỉ tổ rủi ro.
+    #
+    # Có nâng gói thì vẫn giữ nguyên một bản: Colyseus giữ danh sách phòng
+    # trong bộ nhớ tiến trình, chạy hai bản là mỗi bản thấy một danh sách
+    # khác nhau và người chơi vào nhầm bản thì không gặp được nhau. Muốn
+    # chạy nhiều bản phải thêm Redis presence và Redis driver trước đã.
 
     envVars:
       - key: NODE_ENV
         value: production
+
+      # Render không tự đặt PORT; không khai thì nó đi dò cổng, dò không ra
+      # là coi như 10000. Khai thẳng cho khỏi phải đoán — Dockerfile cũng
+      # đang mở đúng cổng này.
+      - key: PORT
+        value: 2567
 
       # Render tự sinh khi dựng lần đầu rồi giữ nguyên mãi. Không bao giờ
       # phải nhìn thấy hay chép tay hai chuỗi này.
