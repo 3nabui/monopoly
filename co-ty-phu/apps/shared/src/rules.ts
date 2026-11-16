@@ -41,15 +41,32 @@ export const LUOT_MAT_DIEN = 5;
 export const HE_SO_MUA_DUT = 2;
 
 /**
- * Bảng tiền thuê của một ô đất, tính bằng K, theo bậc công trình:
- * [mua đất, 1 nhà, 2 nhà, 3 nhà, khách sạn].
+ * Hệ số tiền thuê theo bậc công trình: [mua đất, 1 nhà, 2 nhà, 3 nhà, khách sạn].
+ *
+ * Đây là chỗ cân bằng độ dài ván. Mỗi bậc nhân lên khoảng hai lần rưỡi, nên
+ * xây thêm lúc nào cũng đáng; bậc cuối cố ý dừng ở 40 chứ không phải 125 như
+ * cờ tỷ phú cổ điển, vì từ khi bỏ luật trọn nhóm thì một ô lẻ cũng lên được
+ * khách sạn. Với ô đắt nhất bàn (Hoàn Kiếm 400K) khách sạn thu 1.600K, nhỉnh
+ * hơn tiền khởi điểm 1.500K một chút: dừng vào đó là đòn rất đau nhưng bán
+ * bớt tài sản vẫn còn đường sống, chứ không phá sản ngay tại chỗ.
+ *
+ * Muốn ván dài hơn nữa thì hạ bậc cuối xuống; muốn ngắn lại thì nâng lên.
+ */
+export const HE_SO_THUE: readonly [number, number, number, number, number] =
+  [1, 4, 10, 22, 40];
+
+/**
+ * Bảng tiền thuê của một ô đất, tính bằng K, theo bậc công trình.
  *
  * Mức gốc bằng 1/10 giá mua. Ô đã trọn nhóm nhưng chưa xây thì ăn đôi mức
  * gốc — xem tienThue.
  */
 export function bangThue(giaK: number): [number, number, number, number, number] {
   const g = Math.round(giaK / 10);
-  return [g, g * 5, g * 15, g * 45, g * 125];
+  return [
+    g * HE_SO_THUE[0], g * HE_SO_THUE[1], g * HE_SO_THUE[2],
+    g * HE_SO_THUE[3], g * HE_SO_THUE[4],
+  ];
 }
 
 /**

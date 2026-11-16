@@ -39,6 +39,19 @@ describe("Phòng cờ tỷ phú", () => {
     assert.strictEqual(SO_BIEN, 4, "SO_BIEN phải đếm đúng số ô biển trên bàn");
   });
 
+  it("khách sạn ở ô đắt nhất không vượt quá hai lần tiền khởi điểm", () => {
+    // Chốt chặn cân bằng: từ khi bỏ luật trọn nhóm, một ô lẻ cũng lên được
+    // khách sạn, nên bậc cuối mà quá cao thì dừng vào đó là phá sản ngay.
+    const datMax = BAN_CO
+      .filter((o) => o.loai === "dat")
+      .reduce((re, o) => ((o.gia ?? 0) > (re.gia ?? 0) ? o : re));
+    const khachSan = bangThue(datMax.gia!)[BAC_KHACH_SAN] * 1000;
+    assert.ok(
+      khachSan <= TIEN_BAN_DAU * 2,
+      `khách sạn ở ${datMax.ten} thu ${khachSan}, quá nặng so với ${TIEN_BAN_DAU} khởi điểm`,
+    );
+  });
+
   it("bảng tiền thuê ô biển có đúng một mức cho mỗi ô biển", () => {
     const b = bangThueBien();
     assert.strictEqual(b.length, SO_BIEN);

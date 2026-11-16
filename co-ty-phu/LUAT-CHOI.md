@@ -139,13 +139,32 @@ không thu được gì.
 | --- | --- |
 | Mua đất, chưa trọn nhóm | mức cơ bản |
 | Mua đất, đã trọn cả nhóm | **gấp đôi** mức cơ bản |
-| 1 nhà | 5× cơ bản |
-| 2 nhà | 15× cơ bản |
-| 3 nhà | 45× cơ bản |
-| Khách sạn | 125× cơ bản |
+| 1 nhà | 4× cơ bản |
+| 2 nhà | 10× cơ bản |
+| 3 nhà | 22× cơ bản |
+| Khách sạn | 40× cơ bản |
 
-Mức cơ bản bằng **1/10 giá mua**. Ví dụ Hoàn Kiếm 400K thì cơ bản 40K, trọn
-nhóm 80K, ba nhà 1.800K, khách sạn 5.000K.
+Mức cơ bản bằng **1/10 giá mua**.
+
+Vài ô tiêu biểu, tính bằng K:
+
+| Ô | Giá | Xây mỗi bậc | 1 nhà | 2 nhà | 3 nhà | Khách sạn |
+| --- | --- | --- | --- | --- | --- | --- |
+| Đồng Văn | 60 | 15 | 24 | 60 | 132 | 240 |
+| Sa Pa | 120 | 30 | 48 | 120 | 264 | 480 |
+| Tam Cốc | 140 | 35 | 56 | 140 | 308 | 560 |
+| Hội An | 240 | 60 | 96 | 240 | 528 | 960 |
+| Bến Thành | 320 | 80 | 128 | 320 | 704 | 1.280 |
+| Hoàn Kiếm | 400 | 100 | 160 | 400 | 880 | 1.600 |
+
+Bậc cuối cố ý dừng ở 40× chứ không phải 125× như cờ tỷ phú cổ điển. Từ khi bỏ
+luật trọn nhóm thì một ô lẻ cũng lên được khách sạn, nên nếu giữ 125× thì ô
+đắt nhất thu 5.000K — gấp hơn ba lần tiền khởi điểm, ai dừng vào là phá sản
+ngay tại chỗ. Ở mức 40×, Hoàn Kiếm thu 1.600K, nhỉnh hơn tiền khởi điểm một
+chút: vẫn là đòn rất đau nhưng bán bớt tài sản thì còn đường sống.
+
+Năm hệ số này nằm ở `HE_SO_THUE` trong `rules.ts`, sửa một dòng là xong. Hạ
+bậc cuối thì ván dài ra, nâng lên thì ván ngắn lại.
 
 Trọn nhóm vẫn được thưởng gấp đôi ở bậc chưa xây, và vẫn là một trong ba cách
 thắng ván — nhưng nó không còn là điều kiện để xây nữa.
