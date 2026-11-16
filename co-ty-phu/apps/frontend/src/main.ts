@@ -45,9 +45,13 @@ const hud = new Hud({
     ban.dongBoMau();
   },
   onChoiLai: () => location.reload(),
+  onPhongTo: () => ban.phongTo(),
+  onThuNho: () => ban.thuNho(),
 });
 
 ban.setOnChonO((i) => hud.moTheO(i));
+ban.setOnZoom((z) => hud.capNhatZoom(z));
+hud.capNhatZoom(ban.mucZoom);
 
 /** Dành chỗ bên trái cho bảng giá khi màn hình đủ rộng. */
 function canChinhKhung() {

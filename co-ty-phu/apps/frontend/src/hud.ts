@@ -12,6 +12,8 @@ export interface HudCallbacks {
   onXay(o?: number): void;
   onDoiMau(): void;
   onChoiLai(): void;
+  onPhongTo(): void;
+  onThuNho(): void;
 }
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -31,6 +33,13 @@ export class Hud {
 
   datSid(sid: string) { this.sid = sid; }
 
+  /** Bật tắt nút phóng to và lời nhắc kéo, theo mức zoom hiện tại. */
+  capNhatZoom(z: number) {
+    ($("btnZoomOut") as HTMLButtonElement).disabled = z <= 1.001;
+    ($("btnZoomIn") as HTMLButtonElement).disabled = z >= 2.999;
+    $("zoomhint").hidden = z <= 1.001;
+  }
+
   // ------------------------------------------------------------ sự kiện
 
   private ganSuKien() {
@@ -41,6 +50,8 @@ export class Hud {
       this.cb.onVaoPhong(ten || "Người chơi");
     });
     $("btnSanSang").addEventListener("click", () => this.cb.onSanSang());
+    $("btnZoomIn").addEventListener("click", () => this.cb.onPhongTo());
+    $("btnZoomOut").addEventListener("click", () => this.cb.onThuNho());
     $("btnRoll").addEventListener("click", () => this.cb.onTung());
     $("btnTheme").addEventListener("click", () => this.cb.onDoiMau());
     $("btnLegend").addEventListener("click", () => {

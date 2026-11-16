@@ -78,6 +78,16 @@ canvas#scene { display: block; width: 100%; height: 100%; touch-action: manipula
   backdrop-filter: blur(10px); transition: transform .12s ease, background .12s ease;
 }
 .rail button:hover { transform: scale(1.08); }
+.rail button:disabled { opacity: .4; cursor: default; transform: none; }
+
+.zoomhint {
+  position: absolute; right: calc(72px + env(safe-area-inset-right, 0px)); top: 50%;
+  transform: translateY(calc(-50% - 112px));
+  background: var(--panel); border: 1px solid var(--panel-line); border-radius: 999px;
+  padding: 6px 13px; font-size: 11.5px; font-weight: 600; color: var(--panel-sub);
+  box-shadow: 0 6px 16px var(--panel-shadow); backdrop-filter: blur(8px); white-space: nowrap;
+}
+.zoomhint[hidden] { display: none !important; }
 .rail button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .rail button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 

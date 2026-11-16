@@ -4,7 +4,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import {
-  BAN_CO, MAU_NGUOI_CHOI, NHOM, SO_O, mauCuaO, tenLoaiO,
+  BAN_CO, MAU_NGUOI_CHOI, SO_O, mauCuaO, tenLoaiO,
 } from "@co-ty-phu/shared";
 import type { O } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
@@ -463,19 +463,50 @@ function trangTriGoc(icon: string | undefined) {
 /* ====================================================================
    Vẽ nhãn ô bằng canvas
    ==================================================================== */
-function chuVua(ctx: CanvasRenderingContext2D, chu: string, maxW: number, size: number, weight: string, font: string) {
-  let s = size;
-  do {
-    ctx.font = `${weight} ${s}px ${font}`;
-    if (ctx.measureText(chu).width <= maxW) break;
-    s -= 2;
-  } while (s > 10);
-  return s;
+/**
+ * Xếp chữ thành tối đa `maxDong` dòng, thu nhỏ dần cho tới khi vừa bề ngang.
+ * Trả về các dòng và cỡ chữ đã chọn.
+ */
+function xepDong(
+  ctx: CanvasRenderingContext2D, chu: string, maxW: number,
+  coBatDau: number, weight: string, font: string, maxDong = 2,
+): { dong: string[]; co: number } {
+  const tu = chu.split(" ");
+  for (let co = coBatDau; co >= 16; co -= 2) {
+    ctx.font = `${weight} ${co}px ${font}`;
+    if (ctx.measureText(chu).width <= maxW) return { dong: [chu], co };
+    if (tu.length < 2 || maxDong < 2) continue;
+
+    const dong: string[] = [];
+    let hienTai = tu[0];
+    for (const t of tu.slice(1)) {
+      const thu = `${hienTai} ${t}`;
+      if (ctx.measureText(thu).width <= maxW) hienTai = thu;
+      else { dong.push(hienTai); hienTai = t; }
+    }
+    dong.push(hienTai);
+    if (dong.length <= maxDong && dong.every((d) => ctx.measureText(d).width <= maxW)) {
+      return { dong, co };
+    }
+  }
+  ctx.font = `${weight} 16px ${font}`;
+  return { dong: [chu], co: 16 };
+}
+
+function veDong(
+  ctx: CanvasRenderingContext2D, kq: { dong: string[]; co: number },
+  cx: number, cyGiua: number, weight: string, font: string,
+) {
+  ctx.font = `${weight} ${kq.co}px ${font}`;
+  const buoc = kq.co * 1.02;
+  const dau = cyGiua - ((kq.dong.length - 1) * buoc) / 2;
+  kq.dong.forEach((d, i) => ctx.fillText(d, cx, dau + i * buoc));
 }
 
 function veNhan(o: O, goc: boolean): HTMLCanvasElement {
-  const W = goc ? 300 : 188;
-  const H = 300;
+  // Canvas lớn hơn tỉ lệ ô thật để chữ còn nét khi thu nhỏ xuống màn hình.
+  const W = goc ? 384 : 240;
+  const H = 384;
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const x = c.getContext("2d")!;
@@ -494,78 +525,68 @@ function veNhan(o: O, goc: boolean): HTMLCanvasElement {
     x.translate(W / 2, H / 2); x.rotate(-Math.PI / 4);
     x.textAlign = "center"; x.textBaseline = "middle";
     x.fillStyle = mau;
-    x.font = `700 68px ${BALOO}`;
+    x.font = `700 92px ${BALOO}`;
     const bieu: Record<string, string> = { xuatphat: "▶", daohoang: "⚑", lehoi: "★", dulich: "✈" };
-    x.fillText(bieu[o.icon ?? ""] ?? "●", 0, -40);
+    x.fillText(bieu[o.icon ?? ""] ?? "●", 0, -56);
     x.fillStyle = "#13203a";
-    const s1 = chuVua(x, o.ten, 208, 27, "800", BALOO);
-    x.font = `800 ${s1}px ${BALOO}`;
-    x.fillText(o.ten, 0, 26);
+    veDong(x, xepDong(x, o.ten, 286, 46, "800", BALOO, 2), 0, 36, "800", BALOO);
     if (o.phu) {
       x.fillStyle = "#64748b";
-      x.font = `500 14px ${BVP}`;
-      x.fillText(o.phu, 0, 54);
+      x.font = `600 22px ${BVP}`;
+      x.fillText(o.phu, 0, 92);
     }
     x.restore();
     return c;
   }
 
-  const daiH = o.loai === "dat" ? 70 : 52;
+  // Dải màu nhóm nằm ở mép trong của ô. Tên nhóm không in ở đây nữa — màu đã
+  // nói rõ rồi, bỏ đi thì tên thành phố có thêm chỗ để phóng to.
+  const daiH = o.loai === "dat" ? 58 : 50;
   x.fillStyle = mau; x.fillRect(0, 0, W, daiH);
-  x.fillStyle = "rgba(255,255,255,.22)"; x.fillRect(0, 0, W, 5);
-  x.fillStyle = "rgba(0,0,0,.16)"; x.fillRect(0, daiH - 5, W, 5);
+  x.fillStyle = "rgba(255,255,255,.22)"; x.fillRect(0, 0, W, 6);
+  x.fillStyle = "rgba(0,0,0,.16)"; x.fillRect(0, daiH - 6, W, 6);
   x.textAlign = "center"; x.textBaseline = "middle";
 
   if (o.loai === "dat") {
-    const g = NHOM[o.nhom!];
-    x.fillStyle = "rgba(255,255,255,.96)";
-    const sg = chuVua(x, g.ten.toUpperCase(), W - 20, 19, "700", BVP);
-    x.font = `700 ${sg}px ${BVP}`;
-    x.fillText(g.ten.toUpperCase(), W / 2, daiH / 2);
-
     x.fillStyle = "#13203a";
-    const sn = chuVua(x, o.ten, W - 24, 36, "800", BALOO);
-    x.font = `800 ${sn}px ${BALOO}`;
-    x.fillText(o.ten, W / 2, daiH + 60);
+    veDong(x, xepDong(x, o.ten, W - 22, 68, "800", BALOO, 2), W / 2, 176, "800", BALOO);
 
-    x.strokeStyle = `${mau}55`; x.lineWidth = 3;
-    x.beginPath(); x.moveTo(W / 2 - 34, daiH + 92); x.lineTo(W / 2 + 34, daiH + 92); x.stroke();
+    x.strokeStyle = `${mau}66`; x.lineWidth = 4;
+    x.beginPath(); x.moveTo(W / 2 - 44, 262); x.lineTo(W / 2 + 44, 262); x.stroke();
 
-    x.fillStyle = mau; x.font = `800 44px ${BALOO}`;
-    x.fillText(`${o.gia}K`, W / 2, H - 58);
-    x.fillStyle = "#9aa7b8"; x.font = `600 15px ${BVP}`;
-    x.fillText("GIÁ MUA", W / 2, H - 24);
+    x.fillStyle = mau;
+    x.font = `800 62px ${BALOO}`;
+    x.fillText(`${o.gia}K`, W / 2, 324);
   } else if (o.loai === "bien" || o.loai === "tienich") {
-    x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 17px ${BVP}`;
+    x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 22px ${BVP}`;
     x.fillText(tenLoaiO(o).toUpperCase(), W / 2, daiH / 2);
-    x.fillStyle = mau; x.font = `700 54px ${BALOO}`;
-    x.fillText(o.loai === "bien" ? "⚓" : o.ten.includes("ĐIỆN") ? "⚡" : "💧", W / 2, daiH + 62);
+
+    x.fillStyle = mau; x.font = `700 68px ${BALOO}`;
+    x.fillText(o.loai === "bien" ? "⚓" : o.ten.includes("ĐIỆN") ? "⚡" : "💧", W / 2, 128);
+
     x.fillStyle = "#13203a";
-    const sb = chuVua(x, o.ten, W - 20, 26, "800", BALOO);
-    x.font = `800 ${sb}px ${BALOO}`;
-    x.fillText(o.ten, W / 2, daiH + 128);
-    if (o.phu) {
-      x.fillStyle = "#9aa7b8"; x.font = `500 14px ${BVP}`;
-      x.fillText(o.phu, W / 2, daiH + 154);
-    }
-    x.fillStyle = mau; x.font = `800 36px ${BALOO}`;
-    x.fillText(`${o.gia}K`, W / 2, H - 34);
+    veDong(x, xepDong(x, o.ten, W - 18, 44, "800", BALOO, 2), W / 2, 226, "800", BALOO);
+
+    x.fillStyle = mau; x.font = `800 50px ${BALOO}`;
+    x.fillText(`${o.gia}K`, W / 2, 330);
   } else {
     const nhan: Record<string, string> = { cohoi: "CƠ HỘI", khivan: "KHÍ VẬN", thue: "THUẾ" };
     const bieu: Record<string, string> = { cohoi: "?", khivan: "✦", thue: "₫" };
-    x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 17px ${BVP}`;
+    x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 22px ${BVP}`;
     x.fillText(nhan[o.loai], W / 2, daiH / 2);
+
+    const cy = o.loai === "thue" ? 196 : 228;
     x.fillStyle = `${mau}22`;
-    x.beginPath(); x.arc(W / 2, H / 2 + 10, 62, 0, Math.PI * 2); x.fill();
-    x.fillStyle = mau; x.font = `800 92px ${BALOO}`;
-    x.fillText(bieu[o.loai], W / 2, H / 2 + 18);
+    x.beginPath(); x.arc(W / 2, cy, o.loai === "thue" ? 74 : 88, 0, Math.PI * 2); x.fill();
+    x.fillStyle = mau;
+    x.font = `800 ${o.loai === "thue" ? 108 : 130}px ${BALOO}`;
+    x.fillText(bieu[o.loai], W / 2, cy + 8);
+
     if (o.loai === "thue") {
       x.fillStyle = "#13203a";
-      const st = chuVua(x, o.ten, W - 20, 21, "800", BALOO);
-      x.font = `800 ${st}px ${BALOO}`;
-      x.fillText(o.ten, W / 2, H - 56);
-      x.fillStyle = "#9aa7b8"; x.font = `600 18px ${BVP}`;
-      x.fillText(`Nộp ${o.thue}K`, W / 2, H - 26);
+      veDong(x, xepDong(x, o.ten, W - 16, 34, "800", BALOO, 2), W / 2, 306, "800", BALOO);
+      x.fillStyle = "#8d9bad"; x.font = `700 28px ${BVP}`;
+      x.fillText(`Nộp ${o.thue}K`, W / 2, 356);
     }
   }
   return c;
@@ -728,6 +749,10 @@ export class BanCo3D {
   private dong = 0;
   private khungCanCapNhat = true;
   private lechTrai = 0;
+  private zoom = 1;
+  private panX = 0;
+  private panY = 0;
+  private onZoom?: (z: number) => void;
   private huy = false;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -1107,17 +1132,98 @@ export class BanCo3D {
     this.khungCanCapNhat = true;
   }
 
+  /**
+   * Phóng to và kéo bàn cờ.
+   *
+   * Bàn cờ vẫn cố định hướng — không xoay. Đây chỉ là chuyện nhìn gần hay nhìn
+   * xa, cần thiết vì ở mức vừa khít màn hình, mỗi ô chỉ rộng khoảng 50 pixel
+   * nên chữ trên ô rất khó đọc.
+   */
+  datZoom(z: number) {
+    const cu = this.zoom;
+    this.zoom = Math.max(1, Math.min(3, z));
+    if (this.zoom === 1) { this.panX = 0; this.panY = 0; }
+    else if (cu > 0) { this.panX *= this.zoom / cu; this.panY *= this.zoom / cu; }
+    this.khungCanCapNhat = true;
+    this.onZoom?.(this.zoom);
+  }
+  phongTo() { this.datZoom(this.zoom * 1.35); }
+  thuNho() { this.datZoom(this.zoom / 1.35); }
+  get mucZoom() { return this.zoom; }
+  setOnZoom(cb: (z: number) => void) { this.onZoom = cb; }
+
   private ganSuKien() {
     let dx = 0, dy = 0;
-    this.canvas.addEventListener("pointerdown", (e) => { dx = e.clientX; dy = e.clientY; });
+    let keo = false;
+    let truocX = 0, truocY = 0;
+
+    this.canvas.addEventListener("pointerdown", (e) => {
+      dx = e.clientX; dy = e.clientY;
+      truocX = e.clientX; truocY = e.clientY;
+      if (this.zoom > 1) {
+        keo = true;
+        this.canvas.setPointerCapture(e.pointerId);
+        this.canvas.style.cursor = "grabbing";
+      }
+    });
+
+    this.canvas.addEventListener("pointermove", (e) => {
+      if (keo) {
+        this.panX += e.clientX - truocX;
+        this.panY += e.clientY - truocY;
+        truocX = e.clientX; truocY = e.clientY;
+        this.khungCanCapNhat = true;
+        return;
+      }
+      this.canvas.style.cursor =
+        this.oDuoiChuot(e) >= 0 ? "pointer" : this.zoom > 1 ? "grab" : "default";
+    });
+
+    const thaKeo = (e: PointerEvent) => {
+      if (!keo) return;
+      keo = false;
+      try { this.canvas.releasePointerCapture(e.pointerId); } catch { /* đã nhả rồi */ }
+      this.canvas.style.cursor = this.zoom > 1 ? "grab" : "default";
+    };
+    this.canvas.addEventListener("pointercancel", thaKeo);
+
     this.canvas.addEventListener("pointerup", (e) => {
-      if (Math.abs(e.clientX - dx) + Math.abs(e.clientY - dy) > 10) return;
+      const daKeo = Math.abs(e.clientX - dx) + Math.abs(e.clientY - dy) > 10;
+      thaKeo(e);
+      if (daKeo) return;
       const i = this.oDuoiChuot(e);
       if (i >= 0) this.onChonO?.(i);
     });
-    this.canvas.addEventListener("pointermove", (e) => {
-      this.canvas.style.cursor = this.oDuoiChuot(e) >= 0 ? "pointer" : "default";
+
+    this.canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      this.datZoom(this.zoom * (e.deltaY > 0 ? 1 / 1.18 : 1.18));
+    }, { passive: false });
+
+    // Chụm hai ngón trên cảm ứng.
+    let khoangCach0 = 0;
+    let zoom0 = 1;
+    const diem = new Map<number, { x: number; y: number }>();
+    this.canvas.addEventListener("pointerdown", (e) => {
+      diem.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (diem.size === 2) {
+        const [a, b] = [...diem.values()];
+        khoangCach0 = Math.hypot(a.x - b.x, a.y - b.y);
+        zoom0 = this.zoom;
+        keo = false;
+      }
     });
+    this.canvas.addEventListener("pointermove", (e) => {
+      if (!diem.has(e.pointerId)) return;
+      diem.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (diem.size === 2 && khoangCach0 > 0) {
+        const [a, b] = [...diem.values()];
+        this.datZoom((zoom0 * Math.hypot(a.x - b.x, a.y - b.y)) / khoangCach0);
+      }
+    });
+    const boDiem = (e: PointerEvent) => { diem.delete(e.pointerId); if (diem.size < 2) khoangCach0 = 0; };
+    this.canvas.addEventListener("pointerup", boDiem);
+    this.canvas.addEventListener("pointercancel", boDiem);
   }
 
   private oDuoiChuot(e: PointerEvent): number {
@@ -1136,9 +1242,14 @@ export class BanCo3D {
     this.renderer.setSize(W, H, false);
     this.composer.setSize(W, H);
 
-    const R = BIA + 1.9;
+    /**
+     * Khung vừa khít chỉ tính tới mặt bàn cờ và các công trình trên viền.
+     * Phần chân đảo và đám mây phía dưới được phép tràn ra ngoài màn hình —
+     * nếu tính cả chúng, chiều cao bị thổi lên và bàn cờ co lại thấy rõ.
+     */
+    const R = BIA + 0.6;
     const pts: THREE.Vector3[] = [];
-    for (const x of [-R, R]) for (const z of [-R, R]) for (const y of [-6.0, 4.0]) pts.push(new THREE.Vector3(x, y, z));
+    for (const x of [-R, R]) for (const z of [-R, R]) for (const y of [-1.4, 3.0]) pts.push(new THREE.Vector3(x, y, z));
 
     this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
     let halfW = 0, halfH = 0;
@@ -1149,18 +1260,27 @@ export class BanCo3D {
       halfH = Math.max(halfH, Math.abs(v.y));
     }
 
-    const padX = 14, padY = 72;
+    const padX = 10, padY = 30;
     const usableW = Math.max(220, W - padX * 2 - this.lechTrai);
     const usableH = Math.max(220, H - padY * 2);
-    const scale = Math.min(usableW / (halfW * 2), usableH / (halfH * 2));
+    const vuaKhit = Math.min(usableW / (halfW * 2), usableH / (halfH * 2));
+    const scale = vuaKhit * this.zoom;
+
+    // Giới hạn kéo để bàn cờ không bị lôi ra khỏi màn hình.
+    const toiDaX = Math.max(0, halfW * scale - usableW / 2);
+    const toiDaY = Math.max(0, halfH * scale - usableH / 2);
+    this.panX = Math.max(-toiDaX, Math.min(toiDaX, this.panX));
+    this.panY = Math.max(-toiDaY, Math.min(toiDaY, this.panY));
+
     const viewW = W / scale / 2;
     const viewH = H / scale / 2;
-    const lech = this.lechTrai / 2 / scale;
+    const lech = this.lechTrai / 2 / scale + this.panX / scale;
+    const lechDoc = this.panY / scale;
 
     this.camera.left = -viewW - lech;
     this.camera.right = viewW - lech;
-    this.camera.top = viewH;
-    this.camera.bottom = -viewH;
+    this.camera.top = viewH + lechDoc;
+    this.camera.bottom = -viewH + lechDoc;
     this.camera.updateProjectionMatrix();
   }
 
