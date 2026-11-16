@@ -4,6 +4,7 @@ import { JWT } from "@colyseus/auth";
 import {
   BAC_KHACH_SAN, BAN_CO, O_DAO_HOANG, SO_BIEN, SO_NHOM_THANG, SO_O, TIEN_BAN_DAU,
   HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC, SO_LE_HOI_THUONG,
+  SO_NHA_TOI_DA, SO_KHACH_SAN_TOI_DA,
   bangThue, bangThueBien, coTheGiangCo, coTheMuaDut, coTheXay, giaMua,
   giaMuaDut, giaMuaThucTe, giaXay, thangNgay, tienThue,
 } from "@co-ty-phu/shared";
@@ -563,5 +564,135 @@ describe("Phòng cờ tỷ phú", () => {
     assert.strictEqual(p.viTri, O_DAO_HOANG);
     assert.strictEqual(p.buocCuoi, 0, "dời thẳng thì client nhảy một nhịp, không đi bộ");
     void b;
+  });
+  /* ------------------------------------------------- tự chơi hết một ván */
+
+  /**
+   * Chơi trọn một ván bốn người từ đầu tới lúc có người thắng.
+   *
+   * Đây là lưới an toàn cho toàn bộ luồng ván chơi. Nó không kiểm một luật
+   * cụ thể nào mà kiểm thứ khó thấy hơn: ván không bao giờ kẹt. Mỗi vòng lặp
+   * nhìn giai đoạn hiện tại rồi gửi đúng một tin nhắn hợp lệ, nên nếu có
+   * trạng thái nào server mở ra mà không có đường đi tiếp, trạng thái đó sẽ
+   * đứng im và test báo lỗi kèm tên giai đoạn — thay vì treo im lìm.
+   *
+   * Cố ý KHÔNG dựa vào đồng hồ hết giờ của server: nếu phải chờ hết giờ mới
+   * đi tiếp được thì đó đã là lỗi rồi.
+   */
+  it("bốn người chơi trọn một ván, không kẹt ở bất cứ giai đoạn nào", async function () {
+    this.timeout(60_000);
+
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const ten = ["A", "B", "C", "D"];
+    const client: Record<string, any> = {};
+    for (const t of ten) {
+      const c = await noi(room, t);
+      client[c.sessionId] = c;
+    }
+    assert.strictEqual(room.state.nguoiChoi.size, 4);
+    for (const sid of Object.keys(client)) client[sid].send("sanSang");
+    await room.waitForNextPatch();
+    assert.notStrictEqual(room.state.giaiDoan, "cho", "đủ bốn người sẵn sàng thì ván phải chạy");
+
+    /** Chữ ký trạng thái, đổi là ván có tiến triển. */
+    const chuKy = () =>
+      [
+        room.state.giaiDoan, room.state.luotCua, room.state.hanhDong,
+        room.state.kieuChon, room.state.oChoQuyet, room.state.tienCanGom,
+        room.state.xx1, room.state.xx2, room.state.congBoSo,
+        [...room.state.nguoiChoi.values()].map((p) => `${p.viTri}:${p.tien}`).join("|"),
+        [...room.state.o].map((t: any) => `${t.chu}${t.nha}`).join(""),
+      ].join("/");
+
+    const nghi = () => new Promise((r) => setTimeout(r, 12));
+    let truoc = chuKy();
+    let imLang = 0;
+    let soNuoc = 0;
+
+    for (let vong = 0; vong < 6000; vong++) {
+      if (room.state.giaiDoan === "ketthuc") break;
+
+      const sid = room.state.luotCua;
+      const c = sid ? client[sid] : undefined;
+      const gd = room.state.giaiDoan;
+      const hd = room.state.hanhDong ? room.state.hanhDong.split(",") : [];
+
+      if (c) {
+        if (gd === "tung") {
+          c.send("tungXucXac");
+        } else if (gd === "gom") {
+          c.send("tudong");
+        } else if (gd === "chon") {
+          if (room.state.kieuChon === "tangNguoi") {
+            c.send("chon", { nguoi: room.state.nguoiChonDuoc.split(",")[0] });
+          } else {
+            c.send("chon", { o: Number(room.state.oChonDuoc.split(",")[0]) });
+          }
+        } else if (gd === "quyet") {
+          // Mua và xây hăng để ván tiến tới một điều kiện thắng, chứ cứ bỏ
+          // qua hết thì hai nghìn vòng vẫn chưa ai hơn ai.
+          const chon = ["mua", "xay", "muadut", "tieptuc", "boqua"].find((x) => hd.includes(x));
+          if (chon) c.send(chon);
+        }
+        soNuoc++;
+      }
+
+      await nghi();
+
+      const bayGio = chuKy();
+      if (bayGio === truoc) {
+        imLang++;
+        assert.ok(
+          imLang < 80,
+          `ván kẹt ở giai đoạn "${gd}" (kiểuChọn "${room.state.kieuChon}", `
+            + `hành động "${room.state.hanhDong}") sau ${soNuoc} nước đi`,
+        );
+      } else {
+        imLang = 0;
+        truoc = bayGio;
+      }
+    }
+
+    assert.strictEqual(
+      room.state.giaiDoan, "ketthuc",
+      `sau ${soNuoc} nước đi ván vẫn chưa xong, có thể luật đang không dẫn tới kết cục nào`,
+    );
+    assert.ok(room.state.nguoiThang, "phải có người thắng");
+
+    // Một dòng tóm tắt: chạy test nhiều lần là thấy ngay ván thường kết thúc
+    // bằng cách nào và dài bao nhiêu — dữ liệu cân bằng rẻ tiền nhất có.
+    const conSong = [...room.state.nguoiChoi.values()].filter((p) => !p.phaSan).length;
+    console.log(
+      `      [ván] thắng vì "${room.state.lyDoThang}" sau ${soNuoc} nước đi, `
+        + `${conSong}/4 người còn trụ`,
+    );
+    assert.ok(
+      ["bien", "nhom", "conlai"].includes(room.state.lyDoThang),
+      `lý do thắng lạ: ${room.state.lyDoThang}`,
+    );
+
+    // Hộp cờ phải cân: số nhà trên bàn cộng số còn trong hộp đúng bằng tổng.
+    let nhaTrenBan = 0;
+    let ksTrenBan = 0;
+    for (const o of BAN_CO) {
+      const tt = room.state.o[o.i];
+      if (o.loai !== "dat") continue;
+      if (tt.nha >= BAC_KHACH_SAN) ksTrenBan++;
+      else nhaTrenBan += tt.nha;
+    }
+    assert.strictEqual(
+      nhaTrenBan + room.state.nhaConLai, SO_NHA_TOI_DA,
+      "số nhà trên bàn cộng số trong hộp phải luôn bằng tổng ban đầu",
+    );
+    assert.strictEqual(
+      ksTrenBan + room.state.khachSanConLai, SO_KHACH_SAN_TOI_DA,
+      "số khách sạn trên bàn cộng số trong hộp phải luôn bằng tổng ban đầu",
+    );
+
+    // Lễ hội toàn quốc, nếu có, chỉ được nằm ở đúng một ô.
+    assert.ok(
+      [...room.state.o].filter((t: any) => t.leHoiToanQuoc).length <= 1,
+      "cả bàn chỉ được có nhiều nhất một lễ hội toàn quốc",
+    );
   });
 });

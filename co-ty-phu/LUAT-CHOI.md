@@ -355,6 +355,21 @@ Khi thêm thẻ mới trong `apps/shared/src/the.ts`, chọn một trong chín k
 Muốn thêm kiểu hiệu ứng hoàn toàn mới thì cần sửa cả `the.ts` và hàm
 `apDungThe` trong `apps/backend/src/rooms/CoTyPhuRoom.ts` — nhắn tôi.
 
+## Cả bàn cùng thấy gì
+
+Bảng hành động ở đáy màn hình chỉ hiện cho người đang tới lượt — đó là chỗ
+bấm nút. Những gì cả bàn cần biết thì phát thành **tấm thẻ giữa màn hình**,
+mọi người chơi thấy giống hệt nhau cùng lúc:
+
+- Thẻ Cơ hội vừa rút, kèm tên người rút.
+- Kết quả bốn thẻ tương tác: ai phá ô của ai, ai cắt điện ô nào, ai tặng gì
+  cho ai.
+- Ô vừa bị mua đứt và giá bao nhiêu.
+- Lễ hội thường đầu ván mở ở đâu, và mỗi lần lễ hội toàn quốc đổi chỗ.
+
+Ô xúc xắc dưới đáy cũng ghi tên người vừa tung chứ không chỉ ghi số điểm.
+Nhật ký bên phải giữ lại 14 dòng gần nhất cho ai muốn xem lại.
+
 ## Những luật chưa làm
 
 Liệt kê để anh/chị biết game đang thiếu gì so với cờ tỷ phú đầy đủ:

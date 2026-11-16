@@ -35,7 +35,17 @@
           <div class="dicebox" id="diceOut">Đang kết nối…</div>
         </div>
 
-        <div class="actpanel" id="actpanel" hidden>
+        <!-- Tấm thẻ công bố giữa màn hình, mọi người chơi đều thấy giống nhau. -->
+      <div class="reveal" id="reveal" hidden>
+        <div class="card">
+          <div class="who"><span class="dot" id="revDot"></span><span id="revWho"></span></div>
+          <div class="sym" id="revSym">?</div>
+          <div class="kind" id="revKind">CƠ HỘI</div>
+          <div class="txt" id="revTxt"></div>
+        </div>
+      </div>
+
+      <div class="actpanel" id="actpanel" hidden>
           <div class="band" id="apBand"></div>
           <div class="in">
             <div class="hd">

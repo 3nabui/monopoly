@@ -64,6 +64,11 @@ export interface AnhChup {
   nguoiChonDuoc: string[];
   /** Ô đang chờ tặng ở bước hai của thẻ tặng ô; -1 nghĩa là không có. */
   oDangTang: number;
+  /** Công bố cho cả bàn: nội dung, loại, người liên quan, và số đếm. */
+  congBo: string;
+  congBoLoai: string;
+  congBoAi: string;
+  congBoSo: number;
   nguoiThang: string;
   /** "bien" | "nhom" | "conlai" — vì sao người đó thắng. */
   lyDoThang: string;
@@ -82,6 +87,7 @@ export function anhChupRong(): AnhChup {
     giaiDoan: "cho", luotCua: "", hanLuot: 0, xx1: 0, xx2: 0,
     oChoQuyet: -1, tienPhaiTra: 0, hanhDong: [], thongBao: "",
     tienCanGom: 0, kieuChon: "", oChonDuoc: [], nguoiChonDuoc: [], oDangTang: -1,
+    congBo: "", congBoLoai: "", congBoAi: "", congBoSo: 0,
     nguoiThang: "", lyDoThang: "", nhaConLai: 32, khachSanConLai: 12,
     tenPhong: "", coMatKhau: false, chuPhong: "",
     nguoiChoi: [], o: [], nhatKy: [],

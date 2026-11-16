@@ -261,9 +261,9 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       if (chuCu) chuCu.tien += gia;
       tt.chu = sid;
       tt.matDien = 0;
-      this.ghi(
+      this.congBo(
+        "mua", sid,
         `${p.ten} mua đứt ${o.ten} của ${chuCu?.ten ?? "?"} với ${dinhDang(gia)}.`,
-        "mua",
       );
       this.ketThucQuyet();
     },
@@ -429,6 +429,22 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     return this.thuTuNguoiChoi().filter((x) => x !== sid);
   }
 
+  /**
+   * Phát một thông tin cho CẢ BÀN cùng thấy, không riêng người đang đi.
+   *
+   * Dùng cho những gì ai cũng cần biết ngay: thẻ cơ hội vừa rút, ô vừa bị
+   * mua đứt, lễ hội toàn quốc vừa dời. Mọi công bố đều được ghi vào nhật ký
+   * luôn, nên không cần gọi ghi() thêm lần nữa.
+   */
+  private congBo(loai: string, ai: string, noiDung: string) {
+    this.state.congBo = noiDung;
+    this.state.congBoLoai = loai;
+    this.state.congBoAi = ai;
+    // Quay vòng trước khi chạm trần uint16, client chỉ cần thấy số đổi.
+    this.state.congBoSo = (this.state.congBoSo + 1) % 60_000;
+    this.ghi(noiDung, loai === "mua" ? "mua" : loai === "the" ? "the" : "he-thong");
+  }
+
   private ghi(noiDung: string, loai: string) {
     const d = new DongNhatKy();
     d.noiDung = noiDung;
@@ -485,9 +501,9 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     const chon = tron(BAN_CO.filter(coTheGiangCo).map((o) => o.i))
       .slice(0, SO_LE_HOI_THUONG);
     for (const i of chon) this.state.o[i].leHoi = true;
-    this.ghi(
+    this.congBo(
+      "lehoi", "",
       `Lễ hội năm nay mở ở ${chon.map((i) => BAN_CO[i].ten).join(" và ")}.`,
-      "he-thong",
     );
   }
 
@@ -673,7 +689,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     // --- thẻ cơ hội ---
     if (o.loai === "cohoi") {
       const the = this.rutThe();
-      this.ghi(`${p.ten} rút thẻ: ${the.noiDung}`, "the");
+      this.congBo("the", sid, the.noiDung);
       this.apDungThe(sid, p, the, () => {
         if (this.kiemTraKetThuc()) return;
         this.moQuyet(["tieptuc"], the.noiDung);
@@ -1268,7 +1284,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     }
     tt.chu = den;
     tt.matDien = 0;
-    this.ghi(`${p.ten} tặng ${o.ten} cho ${nhan.ten}.`, "the");
+    this.congBo("the", tu, `${p.ten} tặng ${o.ten} cho ${nhan.ten}.`);
     this.kiemTraKetThuc();
   }
 
@@ -1318,23 +1334,23 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
         tt.theChap = false;
         tt.matDien = 0;
         tt.leHoiToanQuoc = false;
-        this.ghi(`${p.ten} phá bỏ ${o.ten} của ${chuCu?.ten ?? "?"}, ô thành vô chủ.`, "the");
+        this.congBo("the", sid, `${p.ten} phá bỏ ${o.ten} của ${chuCu?.ten ?? "?"}, ô thành vô chủ.`);
         break;
 
       case "haBac":
         tt.nha -= 1;
         this.state.nhaConLai += 1;
-        this.ghi(
+        this.congBo(
+          "the", sid,
           `${p.ten} hạ ${o.ten} của ${chuCu?.ten ?? "?"} xuống còn ${tt.nha} nhà.`,
-          "the",
         );
         break;
 
       case "matDien":
         tt.matDien = LUOT_MAT_DIEN;
-        this.ghi(
-          `${o.ten} của ${chuCu?.ten ?? "?"} mất điện ${LUOT_MAT_DIEN} lượt tung.`,
-          "the",
+        this.congBo(
+          "the", sid,
+          `${p.ten} cắt điện ${o.ten} của ${chuCu?.ten ?? "?"} trong ${LUOT_MAT_DIEN} lượt tung.`,
         );
         break;
 
@@ -1343,11 +1359,11 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
         const cu = BAN_CO.find((x) => this.state.o[x.i].leHoiToanQuoc);
         for (const x of BAN_CO) this.state.o[x.i].leHoiToanQuoc = false;
         tt.leHoiToanQuoc = true;
-        this.ghi(
+        this.congBo(
+          "lehoi", sid,
           cu && cu.i !== i
             ? `${p.ten} giành Lễ hội toàn quốc từ ${cu.ten} về ${o.ten}.`
             : `${p.ten} đăng cai Lễ hội toàn quốc ở ${o.ten}.`,
-          "the",
         );
         break;
       }

@@ -40,6 +40,8 @@ export class Hud {
   private tienCu = new Map<string, number>();
   private oDangXem = -1;
   private boDemTimer?: number;
+  private congBoCu = -1;
+  private congBoTimer?: number;
   private khoaQuyet = "";
   private phongDangHoi = "";
   private nguoiDung: { id: string; ten: string; anh?: string } | null = null;
@@ -228,6 +230,7 @@ export class Hud {
 
     this.veCho(anh);
     this.veNguoiChoi(anh, dau);
+    this.veCongBo(anh, dau);
     this.vePanel(anh);
     this.veNhatKy(anh);
     this.veKetThuc(anh);
@@ -238,9 +241,13 @@ export class Hud {
     btn.disabled = !(denLuot && anh.giaiDoan === "tung" && !!toi && !toi.phaSan);
     btn.textContent = toi?.oDao && denLuot ? "TUNG ĐỂ RA ĐẢO" : "TUNG XÚC XẮC";
 
+    // Người xem cũng cần biết ai vừa tung, không chỉ ra mấy điểm.
+    const nguoiDi = anh.nguoiChoi.find((p) => p.sid === anh.luotCua);
+    const ten = nguoiDi ? (nguoiDi.sid === this.sid ? "Bạn" : nguoiDi.ten) : "";
     $("diceOut").textContent =
       anh.xx1 > 0
-        ? `${anh.xx1} + ${anh.xx2} = ${anh.xx1 + anh.xx2}${anh.xx1 === anh.xx2 ? " (đôi)" : ""}`
+        ? `${ten ? `${ten}: ` : ""}${anh.xx1} + ${anh.xx2} = ${anh.xx1 + anh.xx2}`
+          + `${anh.xx1 === anh.xx2 ? " (đôi)" : ""}`
         : anh.thongBao || "Bấm vào một ô để xem giá";
   }
 
@@ -296,6 +303,53 @@ export class Hud {
       if (!dau && cu !== undefined && cu !== p.tien) this.bayTien(el, p.tien - cu);
       this.tienCu.set(p.sid, p.tien);
     });
+  }
+
+  /**
+   * Tấm thẻ công bố giữa màn hình.
+   *
+   * Đây là thứ mọi người chơi cùng thấy, không riêng người đang tung xúc
+   * xắc: bảng hành động bên dưới chỉ hiện cho người tới lượt, còn tấm thẻ
+   * này phát cho cả bàn. Server tăng `congBoSo` mỗi lần có gì đáng công bố,
+   * client thấy số đổi thì bật thẻ lên rồi tự tắt sau vài giây.
+   *
+   * Lần vẽ đầu tiên sau khi vào phòng thì bỏ qua, nếu không người vào giữa
+   * chừng sẽ thấy lại công bố cũ từ đời nào.
+   */
+  private veCongBo(anh: AnhChup, dau: boolean) {
+    if (anh.congBoSo === this.congBoCu) return;
+    this.congBoCu = anh.congBoSo;
+    if (dau || !anh.congBo) return;
+
+    const KIEU: Record<string, { mau: string; sym: string; ten: string }> = {
+      the:   { mau: "#ff8a3d", sym: "?",  ten: "Cơ hội" },
+      mua:   { mau: "#3fb36b", sym: "₫",  ten: "Mua đứt" },
+      lehoi: { mau: "#f2b705", sym: "🎏", ten: "Lễ hội" },
+    };
+    const k = KIEU[anh.congBoLoai] ?? { mau: "#8d9bad", sym: "!", ten: "Diễn biến" };
+    const ai = anh.nguoiChoi.find((p) => p.sid === anh.congBoAi);
+    const mau = ai ? MAU_NGUOI_CHOI[ai.mau % 4] : k.mau;
+
+    const el = $("reveal");
+    el.style.setProperty("--rev-mau", mau);
+    $("revSym").textContent = k.sym;
+    $("revKind").textContent = k.ten;
+    $("revTxt").textContent = anh.congBo;
+    $("revWho").textContent = ai ? ai.ten + (ai.sid === this.sid ? " (bạn)" : "") : "";
+    $("revWho").parentElement!.classList.toggle("trong", !ai);
+    ($("revDot") as HTMLElement).style.background = mau;
+
+    // Khởi động lại hoạt ảnh kể cả khi thẻ trước còn đang hiện.
+    el.classList.remove("di");
+    el.hidden = true;
+    void el.offsetWidth;
+    el.hidden = false;
+
+    if (this.congBoTimer) clearTimeout(this.congBoTimer);
+    this.congBoTimer = window.setTimeout(() => {
+      el.classList.add("di");
+      this.congBoTimer = window.setTimeout(() => { el.hidden = true; }, 320);
+    }, 4200);
   }
 
   private bayTien(el: HTMLElement, delta: number) {
@@ -605,6 +659,9 @@ export class Hud {
     this.tienCu.clear();
     $("manCho").hidden = true;
     $("actpanel").hidden = true;
+    $("reveal").hidden = true;
+    this.congBoCu = -1;
+    if (this.congBoTimer) { clearTimeout(this.congBoTimer); this.congBoTimer = undefined; }
     $("players").innerHTML = "";
     this.datManHinh(this.nguoiDung ? "sanh" : "dangnhap");
   }

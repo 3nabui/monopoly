@@ -100,6 +100,21 @@ export const GameState = schema({
   /** Ô đang chờ tặng ở bước hai của thẻ tặng ô; -1 nghĩa là không có. */
   oDangTang: t.int8().default(-1),
 
+  /**
+   * CÔNG BỐ — những gì cả bàn phải cùng nhìn thấy.
+   *
+   * `thongBao` ở trên chỉ nói với người đang tới lượt, còn đây là kênh phát
+   * cho mọi client: ai rút được thẻ gì, ai mua đứt của ai, lễ hội dời đi
+   * đâu. Client nào thấy `congBoSo` nhảy số thì bật tấm thẻ giữa màn hình.
+   */
+  congBo: t.string().default(""),
+  /** "the" | "mua" | "lehoi" | "tien" — client dùng để chọn màu tấm thẻ. */
+  congBoLoai: t.string().default(""),
+  /** sessionId của người mà công bố này nói tới, để lấy tên và màu quân. */
+  congBoAi: t.string().default(""),
+  /** Tăng một đơn vị mỗi lần công bố, kể cả khi nội dung trùng lần trước. */
+  congBoSo: t.uint16().default(0),
+
   nhatKy: t.array(DongNhatKy),
   nguoiThang: t.string().default(""),
   /** "bien" | "nhom" | "conlai" — vì sao người đó thắng. */

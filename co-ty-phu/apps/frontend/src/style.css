@@ -337,3 +337,73 @@ canvas#scene { display: block; width: 100%; height: 100%; touch-action: manipula
   .actpanel .price b { font-size: 21px; }
   .badge-demo { font-size: 9.5px; padding: 4px 10px; }
 }
+
+/* ------------------------------------------------------------------ công bố
+   Tấm thẻ giữa màn hình, mọi người chơi đều thấy giống nhau: ai rút được thẻ
+   gì, ai mua đứt của ai, lễ hội dời đi đâu. Không chặn thao tác — người đang
+   tới lượt vẫn bấm được bảng hành động phía dưới. */
+.reveal {
+  position: absolute; inset: 0; z-index: 7;
+  display: grid; place-items: center;
+  /* Chừa chỗ cho thanh tung xúc xắc và bảng hành động ở đáy, nếu không ở
+     màn hình thấp tấm thẻ đè lên đúng mấy nút đang cần bấm. */
+  padding-bottom: 210px;
+  pointer-events: none;
+}
+.reveal[hidden] { display: none !important; }
+
+.reveal .card {
+  width: min(330px, 78vw);
+  padding: 18px 20px 22px;
+  border-radius: 20px;
+  text-align: center;
+  color: #13203a;
+  background: linear-gradient(180deg, #fffdf8, #fff3dd);
+  border: 1px solid rgba(0, 0, 0, .1);
+  box-shadow: 0 26px 70px rgba(5, 12, 28, .55), 0 0 0 6px var(--rev-mau, #ff8a3d);
+  transform: scale(.82) rotate(-2.5deg);
+  opacity: 0;
+  animation: revVao .42s cubic-bezier(.2, 1.3, .4, 1) forwards;
+}
+.reveal.di .card { animation: revRa .3s ease forwards; }
+
+@keyframes revVao {
+  from { transform: scale(.82) rotate(-2.5deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes revRa {
+  from { transform: scale(1); opacity: 1; }
+  to   { transform: scale(.94) translateY(-14px); opacity: 0; }
+}
+
+.reveal .who {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 12px; font-weight: 800; letter-spacing: .04em;
+  color: #5a6880; text-transform: uppercase;
+}
+.reveal .who .dot {
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--rev-mau, #ff8a3d);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .85);
+}
+.reveal .who:empty, .reveal .who.trong { display: none; }
+
+.reveal .sym {
+  margin: 6px 0 2px;
+  font-size: 58px; line-height: 1; font-weight: 800;
+  color: var(--rev-mau, #ff8a3d);
+}
+.reveal .kind {
+  font-size: 11px; font-weight: 800; letter-spacing: .18em;
+  color: var(--rev-mau, #ff8a3d); text-transform: uppercase;
+}
+.reveal .txt {
+  margin-top: 11px; font-size: 15.5px; line-height: 1.45; font-weight: 600;
+}
+
+@media (max-width: 720px) {
+  .reveal { padding-bottom: 240px; }
+  .reveal .card { padding: 15px 16px 18px; }
+  .reveal .sym { font-size: 46px; }
+  .reveal .txt { font-size: 14px; }
+}
