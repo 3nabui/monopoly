@@ -3,8 +3,8 @@ import { ColyseusTestServer, boot } from "@colyseus/testing";
 import { JWT } from "@colyseus/auth";
 import {
   BAC_KHACH_SAN, BAN_CO, O_DAO_HOANG, SO_BIEN, SO_NHOM_THANG, SO_O, TIEN_BAN_DAU,
-  bangThue, bangThueBien, coTheXay, giaMua, giaMuaDut, giaXay, thangNgay,
-  tienThue,
+  bangThue, bangThueBien, coTheMuaDut, coTheXay, giaMua, giaMuaDut, giaXay,
+  thangNgay, tienThue,
 } from "@co-ty-phu/shared";
 import type { TrangThaiO } from "@co-ty-phu/shared";
 import appConfig from "../src/app.config.js";
@@ -287,6 +287,28 @@ describe("Phòng cờ tỷ phú", () => {
     // Có hai nhà: gấp đôi cả giá mua lẫn tiền đã xây.
     tt[o.i].nha = 2;
     assert.strictEqual(giaMuaDut(o, tt[o.i]), (giaMua(o) + 2 * giaXay(o)) * 2);
+  });
+
+  it("ô biển và ô khách sạn không ai mua đứt được", () => {
+    const { o: tt, doc } = banTrang();
+    const giau = 99_999_999;
+
+    const bien = BAN_CO.find((x) => x.loai === "bien")!;
+    tt[bien.i].chu = "A";
+    const kqBien = coTheMuaDut(doc, bien.i, "B", giau);
+    assert.strictEqual(kqBien.ok, false, "ô biển phải tự đi tới mà mua");
+    assert.match(kqBien.lyDo!, /[Oo]\u0300? ?bi\u1ec3n|bi\u1ec3n/);
+
+    const dat = timO("Ho\u00e0n Ki\u1ebfm");
+    tt[dat.i].chu = "A";
+    assert.strictEqual(coTheMuaDut(doc, dat.i, "B", giau).ok, true, "\u00f4 \u0111\u1ea5t th\u01b0\u1eddng th\u00ec mua \u0111\u1ee9t \u0111\u01b0\u1ee3c");
+
+    tt[dat.i].nha = BAC_KHACH_SAN;
+    assert.strictEqual(coTheMuaDut(doc, dat.i, "B", giau).ok, false, "kh\u00e1ch s\u1ea1n b\u1ea5t kh\u1ea3 x\u00e2m ph\u1ea1m");
+
+    tt[dat.i].nha = 1;
+    tt[dat.i].theChap = true;
+    assert.strictEqual(coTheMuaDut(doc, dat.i, "B", giau).ok, false, "\u00f4 \u0111ang th\u1ebf ch\u1ea5p");
   });
 
   it("vòng đầu không ai được xây tới bậc 3 nhà", () => {

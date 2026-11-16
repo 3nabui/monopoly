@@ -156,6 +156,8 @@ dừng tại đó.
 Dừng vào ô đã có chủ thì **tiền thuê bị trừ ngay, không có nút từ chối**. Sau
 khi trả xong, người chơi được chọn **mua đứt** ô đó hoặc **bỏ qua**.
 
+Chỉ **ô đất** mới mua đứt được.
+
 **Giá mua đứt = 2 × (giá mua ô + tổng tiền đã xây trên ô).**
 
 Toàn bộ số tiền đó trả thẳng cho chủ cũ, nhà băng không lấy đồng nào. Nhà cửa
@@ -171,8 +173,12 @@ Ví dụ: Hoàn Kiếm giá 400K, giá xây 100K mỗi bậc.
 | 3 nhà | 1.400K |
 | Khách sạn | **không mua đứt được** |
 
-Hai trường hợp không mua đứt được:
+Ba trường hợp không mua đứt được:
 
+- **Ô biển.** Gom đủ cả bốn ô biển là thắng ngay, nên nếu mua đứt được thì ai
+  có tiền cũng giật được chiến thắng từ tay người khác — mà ô biển lại rẻ
+  nhất bàn để mua đứt vì không xây nhà được. Muốn có biển thì phải tự đi tới
+  ô đó và mua.
 - Ô **đã lên khách sạn** — đó là phần thưởng cho người dám xây tới bậc cuối.
 - Ô **đang thế chấp**.
 
@@ -256,10 +262,9 @@ Hết 25 giây thì server chọn thay.
 Ba điểm cần anh/chị biết vì tôi phải tự quyết:
 
 - **Cả bốn thẻ chỉ nhắm vào ô đất, không đụng tới ô biển.** Anh/chị viết "ô
-  đất" nên tôi hiểu theo nghĩa hẹp. Hệ quả: không có cách nào cản một người
-  đang gom biển, mà ô biển lại dễ mua đứt (chỉ 400K vì không xây nhà được
-  nên vốn chủ cũ luôn đúng bằng giá mua). Muốn cho thẻ đánh được cả ô biển,
-  hoặc cấm mua đứt ô biển, thì nói — cả hai đều sửa nhanh.
+  đất" nên tôi hiểu theo nghĩa hẹp. Ô biển vì vậy hoàn toàn bất khả xâm
+  phạm: không thẻ nào đánh được, cũng không mua đứt được. Ai đi tới trước
+  thì giữ được, và gom đủ bốn ô là thắng.
 - **"Tặng cho người khác" hiện là tặng cho người ngồi kế tiếp** theo thứ tự
   đi. Bàn 2 người thì không có gì để bàn; bàn 3–4 người, muốn người rút được
   tự chọn tặng ai thì phải thêm một bước chọn nữa.

@@ -109,11 +109,30 @@ export interface KetQuaKiemTra {
 }
 
 /**
- * Có được mua đứt ô i hay không.
+ * Ô có thuộc diện mua đứt được hay không, xét riêng bản thân ô — chưa quan
+ * tâm ai đang đứng ở đó hay có đủ tiền không.
  *
- * Mua đứt chỉ áp dụng cho ô đang có chủ khác mình, chưa lên khách sạn và
- * không đang thế chấp. Khách sạn là bất khả xâm phạm — đó là phần thưởng cho
- * người dám xây tới bậc cuối.
+ * Ba thứ nằm ngoài tầm mua đứt:
+ *   - Ô biển. Gom đủ ô biển là thắng ngay, nên nếu mua đứt được thì ai có
+ *     tiền cũng giật được chiến thắng từ tay người khác, mà ô biển lại rẻ
+ *     nhất bàn vì không xây nhà được. Muốn có biển thì phải tự đi tới và mua.
+ *   - Ô đã lên khách sạn. Phần thưởng cho người dám xây tới bậc cuối.
+ *   - Ô đang thế chấp.
+ */
+export function oMuaDutDuoc(o: O, tt: TrangThaiO): KetQuaKiemTra {
+  if (!coTheMua(o)) return { ok: false, lyDo: "Ô này không mua đứt được." };
+  if (o.loai === "bien") {
+    return { ok: false, lyDo: "Ô biển không mua đứt được, phải tự đi tới mà mua." };
+  }
+  if (tt.theChap) return { ok: false, lyDo: "Ô đang thế chấp, không mua đứt được." };
+  if (tt.nha >= BAC_KHACH_SAN) {
+    return { ok: false, lyDo: "Ô đã có khách sạn, không ai mua đứt được." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Có được mua đứt ô i hay không: vừa xét bản thân ô, vừa xét người mua.
  */
 export function coTheMuaDut(
   doc: DocO,
@@ -123,13 +142,13 @@ export function coTheMuaDut(
 ): KetQuaKiemTra {
   const o = BAN_CO[i];
   const tt = doc(i);
-  if (!o || !tt || !coTheMua(o)) return { ok: false, lyDo: "Ô này không mua đứt được." };
+  if (!o || !tt) return { ok: false, lyDo: "Ô này không mua đứt được." };
   if (!tt.chu) return { ok: false, lyDo: "Ô chưa có chủ, mua thường là được." };
   if (tt.chu === nguoiMua) return { ok: false, lyDo: "Ô này đã là của bạn." };
-  if (tt.theChap) return { ok: false, lyDo: "Ô đang thế chấp, không mua đứt được." };
-  if (o.loai === "dat" && tt.nha >= BAC_KHACH_SAN) {
-    return { ok: false, lyDo: "Ô đã có khách sạn, không ai mua đứt được." };
-  }
+
+  const duoc = oMuaDutDuoc(o, tt);
+  if (!duoc.ok) return duoc;
+
   const gia = giaMuaDut(o, tt);
   if (tienMat < gia) {
     return { ok: false, lyDo: `Mua đứt cần ${dinhDang(gia)}, bạn không đủ tiền mặt.` };

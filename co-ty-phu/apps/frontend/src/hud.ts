@@ -2,7 +2,7 @@ import {
   BAC_KHACH_SAN, BAN_CO, DON_VI, MAU_NGUOI_CHOI, NHOM, SO_BIEN, SO_NHOM_THANG,
   THU_TU_NHOM,
   bangThue, bangThueBien, coTheBan, dinhDang, giaMua, giaMuaDut, giaTheChap,
-  giaXay, mauCuaO, tenLoaiO,
+  giaXay, mauCuaO, oMuaDutDuoc, tenLoaiO,
 } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
 
@@ -503,6 +503,7 @@ export class Hud {
       rows.push(["Giá mua", `${o.gia}K`]);
       bangThueBien().forEach((v, k) => rows.push([`Sở hữu ${k + 1} ô biển`, `${v}K`]));
       rows.push([`Sở hữu cả ${SO_BIEN} ô biển`, "Thắng ngay"]);
+      rows.push(["Mua đứt", "Không được, phải tự đi tới mà mua"]);
     } else if (o.loai === "thue") {
       rows.push(["Phải nộp", `10% tài sản, tối đa ${o.thue}K`]);
     } else {
@@ -517,10 +518,8 @@ export class Hud {
         tt.nha >= BAC_KHACH_SAN ? "Khách sạn" : tt.nha > 0 ? `${tt.nha} nhà` : "Mới cắm cờ",
       ]);
       if (tt.chu !== this.sid) {
-        rows.push([
-          "Giá mua đứt",
-          tt.theChap || tt.nha >= BAC_KHACH_SAN ? "Không mua đứt được" : dinhDang(giaMuaDut(o, tt)),
-        ]);
+        const duoc = oMuaDutDuoc(o, tt);
+        rows.push(["Giá mua đứt", duoc.ok ? dinhDang(giaMuaDut(o, tt)) : duoc.lyDo!]);
       }
       if (tt.theChap) rows.push(["Tình trạng", "Đang thế chấp"]);
       if (tt.matDien > 0) rows.push(["Tình trạng", `Mất điện ${tt.matDien} lượt nữa`]);
