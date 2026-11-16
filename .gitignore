@@ -1,0 +1,20 @@
+# phụ thuộc và kết quả build
+node_modules/
+build/
+dist/
+
+# file môi trường riêng của từng máy
+.env
+.env.local
+.env.*.local
+
+# Colyseus
+.colyseus-cloud.json
+.devmode.json
+
+# hệ điều hành và trình soạn thảo
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" href="data:," />
+    <title>Cờ Tỷ Phú Việt</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" />
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="scene" aria-label="Bàn cờ tỷ phú Việt Nam ba chiều"></canvas>
+      <div class="glare"></div>
+      <div class="vig"></div>
+
+      <div class="hud">
+        <div class="players" id="players"></div>
+
+        <div class="badge-demo" id="badge">Cờ Tỷ Phú Việt</div>
+
+        <div class="rail">
+          <button id="btnTheme" type="button" title="Đổi ngày / đêm">☾</button>
+          <button id="btnLegend" type="button" aria-pressed="true" title="Bảng giá đất">☰</button>
+          <button id="btnLog" type="button" aria-pressed="true" title="Nhật ký ván đấu">🗒</button>
+        </div>
+
+        <div class="actionbar">
+          <button class="roll" id="btnRoll" type="button" disabled>TUNG XÚC XẮC</button>
+          <div class="dicebox" id="diceOut">Đang kết nối…</div>
+        </div>
+
+        <div class="actpanel" id="actpanel" hidden>
+          <div class="band" id="apBand"></div>
+          <div class="in">
+            <div class="hd">
+              <div>
+                <div class="gname" id="apGroup"></div>
+                <div class="tname" id="apName"></div>
+              </div>
+              <div class="price" id="apPrice"></div>
+            </div>
+            <div class="rent" id="apRent"></div>
+            <div class="msg" id="apMsg"></div>
+            <div class="btns" id="apBtns"></div>
+          </div>
+          <div class="timer" id="apTimer"><i></i></div>
+        </div>
+
+        <aside class="legend" id="legend">
+          <h2>Bảng giá đất</h2>
+          <p class="note">8 nhóm tỉnh thành trải từ Bắc vào Nam, mỗi nhóm 2 ô. 4 ô biển thay cho nhà ga.</p>
+          <div id="legendGroups"></div>
+          <h3>Bốn ô biển</h3>
+          <div id="legendPorts"></div>
+        </aside>
+
+        <aside class="log" id="log"></aside>
+
+        <div class="tilecard" id="tilecard" hidden>
+          <div class="band" id="tcBand"></div>
+          <div class="body">
+            <h3 class="ttl" id="tcTitle"></h3>
+            <p class="sub" id="tcSub"></p>
+            <table id="tcTable"></table>
+            <button class="close" id="tcXay" type="button" hidden></button>
+            <button class="close" id="tcClose" type="button">Đóng</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="deltas"></div>
+      <div class="toast" id="toast" hidden></div>
+
+      <!-- sảnh chờ -->
+      <div class="overlay" id="sanh">
+        <div class="card" id="vaoPhong">
+          <h1>Cờ Tỷ Phú Việt</h1>
+          <p class="sub" id="vaoSub">
+            Bàn cờ 36 ô với 8 nhóm tỉnh thành và 4 thành phố biển.
+            Máy chủ giữ toàn quyền quyết định: xúc xắc gieo trên server, tiền và
+            quyền sở hữu cũng do server chốt.
+          </p>
+          <form id="formVao">
+            <label for="inpTen">Tên của bạn</label>
+            <input id="inpTen" name="ten" maxlength="16" autocomplete="nickname" placeholder="Ví dụ: Hùng" />
+            <button class="big" id="btnVao" type="submit">Vào phòng</button>
+          </form>
+        </div>
+
+        <div class="card" id="choPhong" hidden>
+          <h1>Phòng chờ</h1>
+          <p class="sub" id="choSub">Cần ít nhất 2 người.</p>
+          <div class="seats" id="seats"></div>
+          <button class="big" id="btnSanSang" type="button">Sẵn sàng</button>
+        </div>
+      </div>
+
+      <!-- kết thúc ván -->
+      <div class="overlay" id="ketthuc" hidden>
+        <div class="card">
+          <h1 id="ktTitle">Ván kết thúc</h1>
+          <p class="sub" id="ktSub"></p>
+          <button class="big" id="btnChoiLai" type="button">Chơi ván mới</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,1221 @@
+import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import {
+  BAN_CO, MAU_NGUOI_CHOI, NHOM, SO_O, mauCuaO, tenLoaiO,
+} from "@co-ty-phu/shared";
+import type { O } from "@co-ty-phu/shared";
+import type { AnhChup } from "./state.js";
+
+/* ====================================================================
+   Kích thước bàn cờ, tính theo đơn vị thế giới
+   ==================================================================== */
+const GOC = 3.2;      // cạnh ô góc
+const RONG = 2.0;     // bề ngang ô thường
+const SAU = 3.2;      // chiều sâu ô thường
+const DAY = 0.5;      // độ dày ô
+const VIEN = 2.9;     // bề rộng viền ngoài, nơi đặt công trình
+const NUA = GOC + RONG * 4;   // 11.2 — mép ngoài hàng ô
+const BIA = NUA + VIEN;       // 14.1 — mép ngoài bệ
+const TRUC = NUA - SAU / 2;   // 9.6 — khoảng cách từ tâm tới tâm ô
+
+interface ViTriO {
+  x: number; z: number; ry: number;
+  ox: number; oz: number;   // hướng ra ngoài
+  goc: boolean;
+}
+
+function viTriCuaO(i: number): ViTriO {
+  const bien = NUA - GOC - RONG / 2;
+  if (i === 0)      return { x: TRUC, z: TRUC, ry: 0, ox: 0.7, oz: 0.7, goc: true };
+  if (i < 9)        return { x: bien - (i - 1) * RONG, z: TRUC, ry: 0, ox: 0, oz: 1, goc: false };
+  if (i === 9)      return { x: -TRUC, z: TRUC, ry: -Math.PI / 2, ox: -0.7, oz: 0.7, goc: true };
+  if (i < 18)       return { x: -TRUC, z: bien - (i - 10) * RONG, ry: -Math.PI / 2, ox: -1, oz: 0, goc: false };
+  if (i === 18)     return { x: -TRUC, z: -TRUC, ry: Math.PI, ox: -0.7, oz: -0.7, goc: true };
+  if (i < 27)       return { x: -bien + (i - 19) * RONG, z: -TRUC, ry: Math.PI, ox: 0, oz: -1, goc: false };
+  if (i === 27)     return { x: TRUC, z: -TRUC, ry: Math.PI / 2, ox: 0.7, oz: -0.7, goc: true };
+  return { x: TRUC, z: -bien + (i - 28) * RONG, ry: Math.PI / 2, ox: 1, oz: 0, goc: false };
+}
+
+/* ====================================================================
+   Tiện ích hình khối
+   ==================================================================== */
+function hinhBo(w: number, d: number, r: number): THREE.Shape {
+  r = Math.min(r, w / 2 - 0.002, d / 2 - 0.002);
+  const s = new THREE.Shape();
+  const x = -w / 2, y = -d / 2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + d - r); s.quadraticCurveTo(x + w, y + d, x + w - r, y + d);
+  s.lineTo(x + r, y + d); s.quadraticCurveTo(x, y + d, x, y + d - r);
+  s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+
+function hopBo(w: number, h: number, d: number, r: number, bev = 0.05): THREE.ExtrudeGeometry {
+  const b = Math.min(bev, h * 0.24, r * 0.7);
+  const g = new THREE.ExtrudeGeometry(hinhBo(w, d, r), {
+    depth: h - b * 2, bevelEnabled: true, bevelThickness: b, bevelSize: b,
+    bevelSegments: 2, curveSegments: 6,
+  });
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, b, 0);
+  g.computeVertexNormals();
+  return g;
+}
+
+function M(color: THREE.ColorRepresentation, rough = 0.82, metal = 0) {
+  return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, envMapIntensity: 0.32 });
+}
+function Mp(color: THREE.ColorRepresentation, rough = 0.3, metal = 0, clear = 0.7) {
+  return new THREE.MeshPhysicalMaterial({
+    color, roughness: rough, metalness: metal,
+    clearcoat: clear, clearcoatRoughness: 0.22, envMapIntensity: 1.1,
+  });
+}
+
+function khoi(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+/** Làm màu công trình đậm và ấm hơn để nổi trên nền bàn cờ xanh xám. */
+function damMau(c: THREE.Color) {
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  if (hsl.s < 0.07) c.setHSL(0.095, 0.16, Math.min(0.88, hsl.l * 0.93));
+  else c.setHSL(hsl.h, Math.min(1, hsl.s * 1.55), Math.max(0.12, Math.min(0.78, hsl.l * 0.88)));
+}
+
+function css(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function laToi(): boolean {
+  return document.documentElement.dataset.theme === "dark";
+}
+
+/* ====================================================================
+   Công trình biểu tượng trên viền bàn cờ
+   ==================================================================== */
+function nhaMai(w: number, h: number, d: number, tuong: number, mai: THREE.ColorRepresentation) {
+  const g = new THREE.Group();
+  g.add(khoi(hopBo(w, h, d, 0.09, 0.035), M(tuong, 0.78)));
+  const m = khoi(new THREE.ConeGeometry(Math.max(w, d) * 0.76, h * 0.72, 4), M(mai, 0.74), 0, h + h * 0.36, 0);
+  m.rotation.y = Math.PI / 4;
+  g.add(m);
+  return g;
+}
+
+function thapTang(n: number, r0: number, hT: number, tuong: number, mai: number) {
+  const g = new THREE.Group();
+  let y = 0;
+  let r = r0;
+  for (let i = 0; i < n; i++) {
+    r = r0 * (1 - i * 0.14);
+    g.add(khoi(new THREE.CylinderGeometry(r * 0.82, r, hT, 8), M(tuong, 0.8), 0, y + hT / 2, 0));
+    g.add(khoi(new THREE.ConeGeometry(r * 1.5, hT * 0.5, 8), M(mai, 0.7), 0, y + hT + hT * 0.22, 0));
+    y += hT * 0.96;
+  }
+  g.add(khoi(new THREE.ConeGeometry(r0 * 0.3, hT * 0.9, 8), M(mai, 0.6), 0, y + hT * 0.42, 0));
+  return g;
+}
+
+function thong(h: number) {
+  const g = new THREE.Group();
+  g.add(khoi(new THREE.CylinderGeometry(0.055, 0.08, h * 0.3, 6), M(0x7a5a42, 0.9), 0, h * 0.15, 0));
+  for (let i = 0; i < 3; i++) {
+    g.add(khoi(new THREE.ConeGeometry(0.34 - i * 0.08, h * 0.42, 7), M(i % 2 ? 0x3f8c4e : 0x47a05a, 0.9), 0, h * 0.32 + i * h * 0.24, 0));
+  }
+  return g;
+}
+
+function cayTron(h: number, mau = 0x4faa5c) {
+  const g = new THREE.Group();
+  g.add(khoi(new THREE.CylinderGeometry(0.06, 0.085, h * 0.42, 6), M(0x7a5a42, 0.9), 0, h * 0.21, 0));
+  g.add(khoi(new THREE.SphereGeometry(h * 0.33, 10, 8), M(mau, 0.92), 0, h * 0.62, 0));
+  return g;
+}
+
+function dua(h: number) {
+  const g = new THREE.Group();
+  const tr = khoi(new THREE.CylinderGeometry(0.05, 0.095, h, 7), M(0x9d7b55, 0.9), 0, h / 2, 0);
+  tr.rotation.z = 0.13;
+  g.add(tr);
+  for (let i = 0; i < 6; i++) {
+    const la = khoi(new THREE.ConeGeometry(0.1, 0.72, 4), M(0x3fa05a, 0.85));
+    la.rotation.z = Math.PI / 2 - 0.42;
+    la.rotation.y = (i * Math.PI) / 3;
+    la.position.set(Math.cos((i * Math.PI) / 3) * 0.3, h - 0.04, Math.sin((i * Math.PI) / 3) * 0.3);
+    g.add(la);
+  }
+  return g;
+}
+
+function nuiDa(h: number, r: number) {
+  const g = new THREE.Group();
+  const m = khoi(new THREE.ConeGeometry(r, h, 6, 1), M(0x72916f, 0.98), 0, h / 2, 0);
+  m.rotation.y = Math.random() * 2;
+  m.scale.set(1, 1, 0.82);
+  g.add(m);
+  g.add(khoi(new THREE.SphereGeometry(r * 0.5, 7, 5), M(0x5f8a5c, 0.98), r * 0.4, h * 0.22, r * 0.2));
+  return g;
+}
+
+function matNuoc(r: number, mau: number) {
+  const m = khoi(new THREE.CircleGeometry(r, 20),
+    new THREE.MeshStandardMaterial({ color: mau, roughness: 0.06, metalness: 0.42, envMapIntensity: 1.6 }),
+    0, 0.02, 0);
+  m.rotation.x = -Math.PI / 2;
+  m.castShadow = false;
+  return m;
+}
+
+function caoOc(w: number, h: number, d: number, mau: number, cuaSo: THREE.Texture, boSuuTap: THREE.MeshStandardMaterial[]) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color: mau, roughness: 0.72, emissiveMap: cuaSo, emissive: 0x000000, envMapIntensity: 0.4,
+  });
+  boSuuTap.push(mat);
+  g.add(khoi(new THREE.BoxGeometry(w, h, d), mat, 0, h / 2, 0));
+  g.add(khoi(hopBo(w * 0.62, 0.22, d * 0.62, 0.07, 0.03), M(0xe3e9f1, 0.7), 0, h, 0));
+  g.add(khoi(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 5), M(0xc8d2de, 0.6), 0, h + 0.46, 0));
+  return g;
+}
+
+function thuyenBuom() {
+  const g = new THREE.Group();
+  const than = khoi(new THREE.CylinderGeometry(0.17, 0.3, 1.25, 6), M(0x8a5f3d, 0.88), 0, 0.14, 0);
+  than.rotation.z = Math.PI / 2;
+  than.scale.set(1, 1, 0.55);
+  g.add(than);
+  g.add(khoi(new THREE.CylinderGeometry(0.025, 0.03, 1.0, 5), M(0x6d4a2e, 0.88), 0, 0.62, 0));
+  g.add(khoi(new THREE.PlaneGeometry(0.62, 0.7),
+    new THREE.MeshStandardMaterial({ color: 0xf2d9a8, side: THREE.DoubleSide, roughness: 0.85 }), 0.3, 0.72, 0));
+  g.add(khoi(new THREE.PlaneGeometry(0.4, 0.48),
+    new THREE.MeshStandardMaterial({ color: 0xf6e6c4, side: THREE.DoubleSide, roughness: 0.85 }), -0.24, 0.6, 0));
+  return g;
+}
+
+function congVom(w: number, h: number, mau: number) {
+  const g = new THREE.Group();
+  g.add(khoi(hopBo(0.22, h, 0.22, 0.06, 0.03), M(mau, 0.8), -w / 2, 0, 0));
+  g.add(khoi(hopBo(0.22, h, 0.22, 0.06, 0.03), M(mau, 0.8), w / 2, 0, 0));
+  g.add(khoi(new THREE.TorusGeometry(w / 2, 0.1, 6, 14, Math.PI), M(mau, 0.8), 0, h, 0));
+  return g;
+}
+
+type XuongMoc = (cuaSo: THREE.Texture, boSuuTap: THREE.MeshStandardMaterial[]) => THREE.Group;
+
+const MOC: Record<string, XuongMoc> = {
+  nhaSan: () => {
+    const g = new THREE.Group();
+    for (const [x, z] of [[-0.45, 0], [0.45, 0.15]]) {
+      const n = nhaMai(0.9, 0.44, 0.72, 0xe8d9bd, 0x8c6b4a);
+      n.position.set(x, 0.26, z);
+      g.add(n);
+      for (const [cx, cz] of [[-0.34, -0.28], [0.34, -0.28], [-0.34, 0.28], [0.34, 0.28]]) {
+        g.add(khoi(new THREE.CylinderGeometry(0.035, 0.035, 0.26, 5), M(0x7a5a42, 0.9), x + cx, 0.13, z + cz));
+      }
+    }
+    const nd = nuiDa(1.1, 0.5); nd.position.set(-1.25, 0, -0.3); g.add(nd);
+    return g;
+  },
+  nuiDa: () => {
+    const g = new THREE.Group();
+    for (const [x, z, h, r] of [[0, 0, 1.5, 0.62], [0.95, 0.3, 1.0, 0.44], [-0.95, -0.2, 1.25, 0.5]]) {
+      const n = nuiDa(h, r); n.position.set(x, 0, z); g.add(n);
+    }
+    return g;
+  },
+  nuiSong: () => {
+    const g = new THREE.Group();
+    g.add(matNuoc(1.25, 0x58b6d6));
+    const n1 = nuiDa(1.35, 0.55); n1.position.set(-0.75, 0, -0.45); g.add(n1);
+    const n2 = nuiDa(1.0, 0.42); n2.position.set(0.8, 0, -0.3); g.add(n2);
+    const th = thuyenBuom(); th.scale.setScalar(0.5); th.position.set(0.1, 0.02, 0.5); g.add(th);
+    return g;
+  },
+  ruongBac: () => {
+    const g = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const r = 1.3 - i * 0.2;
+      g.add(khoi(new THREE.CylinderGeometry(r, r + 0.05, 0.17, 14), M(i % 2 ? 0xa8cf6a : 0x93c45c, 0.95), 0, 0.085 + i * 0.15, 0));
+    }
+    return g;
+  },
+  ruongThong: (c, b) => {
+    const g = MOC.ruongBac(c, b);
+    const t1 = thong(1.3); t1.position.set(-1.05, 0, 0.5); g.add(t1);
+    const t2 = thong(1.0); t2.position.set(1.1, 0, -0.4); g.add(t2);
+    return g;
+  },
+  thuyenBuom: () => {
+    const g = new THREE.Group();
+    g.add(matNuoc(1.5, 0x3ba7c9));
+    const t = thuyenBuom(); t.position.set(-0.15, 0.04, 0.25); g.add(t);
+    const t2 = thuyenBuom(); t2.scale.setScalar(0.62); t2.position.set(0.85, 0.04, -0.45); t2.rotation.y = 0.6; g.add(t2);
+    const n = nuiDa(1.5, 0.5); n.position.set(-1.0, 0, -0.65); g.add(n);
+    const n2 = nuiDa(1.1, 0.38); n2.position.set(1.1, 0, 0.45); g.add(n2);
+    return g;
+  },
+  cauVong: () => {
+    const g = new THREE.Group();
+    g.add(matNuoc(1.4, 0x3ba7c9));
+    const c = congVom(1.9, 0.75, 0xf1c76b); c.position.y = 0.3; g.add(c);
+    g.add(khoi(hopBo(2.0, 0.1, 0.3, 0.05, 0.03), M(0xe8b94f, 0.75), 0, 1.0, 0));
+    const d1 = dua(1.0); d1.position.set(-1.15, 0, 0.55); g.add(d1);
+    return g;
+  },
+  thapChuong: () => {
+    const g = new THREE.Group();
+    g.add(khoi(hopBo(1.5, 0.12, 1.0, 0.06, 0.04), M(0xd9cdb4, 0.9)));
+    g.add(thapTang(5, 0.42, 0.34, 0xe9ddc6, 0xb0553f));
+    const c = cayTron(0.85, 0x4b9a5c); c.position.set(-0.95, 0, 0.4); g.add(c);
+    return g;
+  },
+  congThanh: () => {
+    const g = new THREE.Group();
+    g.add(khoi(hopBo(2.1, 0.72, 0.72, 0.08, 0.04), M(0xcfae7d, 0.86)));
+    g.add(khoi(hopBo(2.35, 0.14, 0.95, 0.06, 0.04), M(0xb34a3c, 0.76), 0, 0.72, 0));
+    g.add(khoi(hopBo(1.3, 0.5, 0.6, 0.07, 0.04), M(0xd9bd92, 0.86), 0, 0.86, 0));
+    g.add(khoi(hopBo(1.55, 0.12, 0.8, 0.05, 0.04), M(0xb34a3c, 0.76), 0, 1.36, 0));
+    g.add(khoi(new THREE.CylinderGeometry(0.03, 0.03, 0.7, 5), M(0xdcd5c6, 0.8), 0, 1.78, 0));
+    g.add(khoi(new THREE.PlaneGeometry(0.34, 0.22),
+      new THREE.MeshStandardMaterial({ color: 0xd93b4e, side: THREE.DoubleSide, roughness: 0.85 }), 0.18, 2.02, 0));
+    return g;
+  },
+  thapCham: () => {
+    const g = new THREE.Group();
+    for (const [x, z, s] of [[-0.75, 0.1, 0.8], [0.15, -0.15, 1.15], [0.95, 0.2, 0.65]]) {
+      const t = thapTang(3, 0.3, s * 0.34, 0xa8694c, 0x8d4f37);
+      t.position.set(x, 0, z); t.scale.setScalar(s); g.add(t);
+    }
+    return g;
+  },
+  phoCo: () => {
+    const g = new THREE.Group();
+    const nha: [number, number, number][] = [[-0.78, 0, 0xf2d79b], [0, 0.12, 0xe9c478], [0.78, -0.05, 0xf3cf8c]];
+    nha.forEach(([x, z, mau], i) => {
+      const n = nhaMai(0.68, 0.56 + i * 0.06, 0.62, mau, 0x9c5a3c);
+      n.position.set(x, 0, z); g.add(n);
+    });
+    for (let i = 0; i < 5; i++) {
+      const d = khoi(new THREE.SphereGeometry(0.09, 8, 7),
+        new THREE.MeshStandardMaterial({ color: 0xff6b5a, emissive: 0x7a1c0c, roughness: 0.6 }),
+        -0.9 + i * 0.45, 1.12, 0.42);
+      d.scale.y = 1.25;
+      g.add(d);
+    }
+    return g;
+  },
+  resort: (c, b) => {
+    const g = new THREE.Group();
+    const n = matNuoc(1.45, 0x35b4cd); n.position.z = 0.35; g.add(n);
+    g.add(khoi(hopBo(2.3, 0.1, 0.9, 0.1, 0.04), M(0xf0e2bd, 0.95), 0, 0, -0.55));
+    const t = caoOc(0.72, 1.5, 0.6, 0xf6f3ec, c, b); t.position.set(-0.55, 0, -0.6); g.add(t);
+    const d1 = dua(1.25); d1.position.set(0.5, 0, -0.45); g.add(d1);
+    const d2 = dua(0.95); d2.position.set(1.0, 0, -0.2); g.add(d2);
+    return g;
+  },
+  doiChe: () => {
+    const g = new THREE.Group();
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        const m = khoi(new THREE.SphereGeometry(0.26, 8, 6), M(r % 2 ? 0x4e9a57 : 0x58a862, 0.95),
+          -1.0 + c * 0.66, 0.1, -0.52 + r * 0.42);
+        m.scale.y = 0.6;
+        g.add(m);
+      }
+    }
+    const n = nhaMai(0.6, 0.4, 0.52, 0xf2ead6, 0x9c5a3c); n.position.set(1.15, 0, 0.45); g.add(n);
+    return g;
+  },
+  nhaTho: () => {
+    const g = new THREE.Group();
+    g.add(khoi(hopBo(0.95, 0.8, 1.5, 0.08, 0.04), M(0xf0ddc0, 0.84), 0.35, 0, 0));
+    const mai = khoi(new THREE.ConeGeometry(0.95, 0.5, 4), M(0xa64b3a, 0.76), 0.35, 1.0, 0);
+    mai.rotation.y = Math.PI / 4; g.add(mai);
+    g.add(khoi(hopBo(0.55, 1.6, 0.55, 0.07, 0.03), M(0xf5e6cc, 0.84), -0.7, 0, 0));
+    g.add(khoi(new THREE.ConeGeometry(0.44, 0.95, 6), M(0xa64b3a, 0.72), -0.7, 2.0, 0));
+    g.add(khoi(new THREE.SphereGeometry(0.08, 8, 6), Mp(0xf5b821, 0.3, 0.8), -0.7, 2.56, 0));
+    const t1 = thong(1.45); t1.position.set(1.25, 0, 0.55); g.add(t1);
+    const t2 = thong(1.1); t2.position.set(-1.3, 0, -0.5); g.add(t2);
+    return g;
+  },
+  trucDien: () => {
+    const g = new THREE.Group();
+    for (let i = 0; i < 2; i++) {
+      const x = -0.6 + i * 1.2;
+      g.add(khoi(new THREE.CylinderGeometry(0.035, 0.075, 1.7, 5), M(0xb9c4d2, 0.6, 0.3), x, 0.85, 0));
+      g.add(khoi(hopBo(0.62, 0.06, 0.07, 0.02, 0.015), M(0xb9c4d2, 0.6, 0.3), x, 1.5, 0));
+      g.add(khoi(hopBo(0.46, 0.06, 0.07, 0.02, 0.015), M(0xb9c4d2, 0.6, 0.3), x, 1.2, 0));
+    }
+    g.add(khoi(hopBo(1.2, 0.55, 0.8, 0.08, 0.04), M(0xdfe6ee, 0.78), 0, 0, -0.75));
+    return g;
+  },
+  thapNuoc: () => {
+    const g = new THREE.Group();
+    for (const [x, z] of [[-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]]) {
+      g.add(khoi(new THREE.CylinderGeometry(0.045, 0.055, 1.1, 5), M(0xc3cedb, 0.7, 0.2), x, 0.55, z));
+    }
+    g.add(khoi(new THREE.CylinderGeometry(0.62, 0.5, 0.58, 12), M(0x6fc0dd, 0.45, 0.1), 0, 1.38, 0));
+    g.add(khoi(new THREE.ConeGeometry(0.66, 0.3, 12), M(0x3f9dc0, 0.5), 0, 1.8, 0));
+    return g;
+  },
+  caoOcDoi: (c, b) => {
+    const g = new THREE.Group();
+    const a = caoOc(0.8, 2.5, 0.8, 0xdce6f2, c, b); a.position.set(-0.55, 0, 0); g.add(a);
+    const d = caoOc(0.68, 1.85, 0.68, 0xe8eef7, c, b); d.position.set(0.5, 0, 0.25); g.add(d);
+    const e = caoOc(0.55, 1.25, 0.55, 0xd3dde9, c, b); e.position.set(1.2, 0, -0.3); g.add(e);
+    return g;
+  },
+  choThap: () => {
+    const g = new THREE.Group();
+    g.add(khoi(hopBo(2.2, 0.78, 1.1, 0.09, 0.04), M(0xf1e2c4, 0.84)));
+    g.add(khoi(hopBo(2.4, 0.12, 1.3, 0.06, 0.04), M(0xc2843f, 0.76), 0, 0.78, 0));
+    g.add(khoi(hopBo(0.62, 0.72, 0.62, 0.07, 0.03), M(0xf7eed9, 0.84), 0, 0.9, 0));
+    g.add(khoi(new THREE.ConeGeometry(0.5, 0.52, 4), M(0xc2843f, 0.72), 0, 1.86, 0));
+    g.add(khoi(new THREE.CircleGeometry(0.17, 14),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }), 0, 1.4, 0.33));
+    return g;
+  },
+  bienDua: () => {
+    const g = new THREE.Group();
+    const n = matNuoc(1.5, 0x2fbfd4); n.position.z = 0.3; g.add(n);
+    g.add(khoi(hopBo(2.4, 0.1, 0.95, 0.12, 0.04), M(0xf5e9c8, 0.95), 0, 0, -0.6));
+    for (const [x, z, h] of [[-0.9, -0.5, 1.35], [-0.1, -0.75, 1.05], [0.75, -0.45, 1.2]]) {
+      const d = dua(h); d.position.set(x, 0, z); g.add(d);
+    }
+    const t = thuyenBuom(); t.scale.setScalar(0.5); t.position.set(0.85, 0.04, 0.6); g.add(t);
+    return g;
+  },
+  chuaMotCot: () => {
+    const g = new THREE.Group();
+    g.add(matNuoc(1.2, 0x4aa6a8));
+    g.add(khoi(new THREE.CylinderGeometry(0.17, 0.2, 0.75, 10), M(0xcfc2a8, 0.88), 0, 0.37, 0));
+    g.add(khoi(hopBo(0.85, 0.36, 0.85, 0.07, 0.03), M(0xe4d6b8, 0.84), 0, 0.74, 0));
+    const mai = khoi(new THREE.ConeGeometry(0.85, 0.45, 4), M(0xa8503c, 0.74), 0, 1.3, 0);
+    mai.rotation.y = Math.PI / 4; g.add(mai);
+    const t = cayTron(1.0, 0x3f8c4e); t.position.set(-1.1, 0, 0.5); g.add(t);
+    return g;
+  },
+  thapRua: () => {
+    const g = new THREE.Group();
+    g.add(matNuoc(1.5, 0x3f8f7a));
+    g.add(khoi(new THREE.CylinderGeometry(0.62, 0.72, 0.14, 14), M(0x8e9a86, 0.95), 0, 0.07, 0));
+    g.add(khoi(hopBo(0.8, 0.5, 0.8, 0.06, 0.03), M(0xd6ceb8, 0.86), 0, 0.14, 0));
+    g.add(khoi(hopBo(0.62, 0.42, 0.62, 0.06, 0.03), M(0xe1d9c3, 0.86), 0, 0.66, 0));
+    g.add(khoi(hopBo(0.44, 0.34, 0.44, 0.05, 0.03), M(0xeae2cd, 0.86), 0, 1.08, 0));
+    const mai = khoi(new THREE.ConeGeometry(0.44, 0.34, 4), M(0x97654a, 0.76), 0, 1.56, 0);
+    mai.rotation.y = Math.PI / 4; g.add(mai);
+    const c1 = cayTron(1.15, 0x46955a); c1.position.set(-1.25, 0, 0.5); g.add(c1);
+    const c2 = cayTron(0.9, 0x3f8c4e); c2.position.set(1.2, 0, -0.45); g.add(c2);
+    return g;
+  },
+};
+
+function trangTriGoc(icon: string | undefined) {
+  const g = new THREE.Group();
+  if (icon === "xuatphat") {
+    g.add(congVom(2.2, 1.3, 0xe02f52));
+    g.add(khoi(hopBo(1.5, 0.16, 0.3, 0.06, 0.04), Mp(0xf5b821, 0.3, 0.8), 0, 1.4, 0));
+    for (const x of [-1.3, 1.3]) {
+      g.add(khoi(new THREE.CylinderGeometry(0.03, 0.03, 1.4, 5), M(0xdfe6ee, 0.7), x, 0.7, 0.3));
+      g.add(khoi(new THREE.PlaneGeometry(0.4, 0.26),
+        new THREE.MeshStandardMaterial({ color: 0xf5b821, side: THREE.DoubleSide, roughness: 0.8 }),
+        x + (x > 0 ? 0.2 : -0.2), 1.3, 0.3));
+    }
+  } else if (icon === "daohoang") {
+    g.add(khoi(hopBo(2.2, 0.1, 1.6, 0.3, 0.04), M(0xf0e2bd, 0.95)));
+    const n1 = nuiDa(1.5, 0.55); n1.position.set(-0.8, 0.05, -0.3); g.add(n1);
+    const d1 = dua(1.5); d1.position.set(0.5, 0.05, 0.1); g.add(d1);
+    const d2 = dua(1.1); d2.position.set(1.05, 0.05, -0.4); g.add(d2);
+  } else if (icon === "lehoi") {
+    g.add(khoi(new THREE.CylinderGeometry(1.25, 1.35, 0.22, 16), M(0xdc4b63, 0.84), 0, 0.11, 0));
+    g.add(khoi(new THREE.CylinderGeometry(0.95, 0.95, 0.14, 16), M(0xf4e3bd, 0.9), 0, 0.28, 0));
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      g.add(khoi(new THREE.CylinderGeometry(0.035, 0.035, 1.3, 5), M(0xe8eef7, 0.75), Math.cos(a), 0.65, Math.sin(a)));
+      g.add(khoi(new THREE.PlaneGeometry(0.36, 0.24),
+        new THREE.MeshStandardMaterial({ color: i % 2 ? 0xf5b821 : 0x2f5bd4, side: THREE.DoubleSide, roughness: 0.82 }),
+        Math.cos(a) + 0.18, 1.2, Math.sin(a)));
+    }
+    g.add(khoi(new THREE.OctahedronGeometry(0.34), Mp(0xf5b821, 0.25, 0.9), 0, 0.72, 0));
+  } else {
+    const mau = Mp(0xeef3f9, 0.3, 0.4);
+    const than = khoi(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 12), mau, 0, 1.0, 0);
+    than.rotation.z = Math.PI / 2; g.add(than);
+    const mui = khoi(new THREE.ConeGeometry(0.2, 0.45, 12), mau, 1.12, 1.0, 0);
+    mui.rotation.z = -Math.PI / 2; g.add(mui);
+    g.add(khoi(hopBo(0.52, 0.07, 2.0, 0.05, 0.025), M(0xd93b4e, 0.65), 0, 1.02, 0));
+    g.add(khoi(hopBo(0.3, 0.46, 0.09, 0.04, 0.02), M(0xd93b4e, 0.65), -0.75, 1.26, 0));
+    g.add(khoi(hopBo(0.26, 0.06, 0.7, 0.04, 0.02), M(0xd93b4e, 0.65), -0.78, 1.02, 0));
+    g.add(khoi(new THREE.CylinderGeometry(0.035, 0.035, 1.0, 6), M(0xcdd7e3, 0.7), 0, 0.5, 0));
+  }
+  return g;
+}
+
+/* ====================================================================
+   Vẽ nhãn ô bằng canvas
+   ==================================================================== */
+function chuVua(ctx: CanvasRenderingContext2D, chu: string, maxW: number, size: number, weight: string, font: string) {
+  let s = size;
+  do {
+    ctx.font = `${weight} ${s}px ${font}`;
+    if (ctx.measureText(chu).width <= maxW) break;
+    s -= 2;
+  } while (s > 10);
+  return s;
+}
+
+function veNhan(o: O, goc: boolean): HTMLCanvasElement {
+  const W = goc ? 300 : 188;
+  const H = 300;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d")!;
+  const mau = mauCuaO(o);
+  const BALOO = '"Baloo 2", system-ui, sans-serif';
+  const BVP = '"Be Vietnam Pro", system-ui, sans-serif';
+
+  x.fillStyle = "#fcfdff";
+  x.fillRect(0, 0, W, H);
+
+  if (goc) {
+    const g0 = x.createLinearGradient(0, 0, W, H);
+    g0.addColorStop(0, `${mau}26`); g0.addColorStop(1, `${mau}0d`);
+    x.fillStyle = g0; x.fillRect(0, 0, W, H);
+    x.save();
+    x.translate(W / 2, H / 2); x.rotate(-Math.PI / 4);
+    x.textAlign = "center"; x.textBaseline = "middle";
+    x.fillStyle = mau;
+    x.font = `700 68px ${BALOO}`;
+    const bieu: Record<string, string> = { xuatphat: "▶", daohoang: "⚑", lehoi: "★", dulich: "✈" };
+    x.fillText(bieu[o.icon ?? ""] ?? "●", 0, -40);
+    x.fillStyle = "#13203a";
+    const s1 = chuVua(x, o.ten, 208, 27, "800", BALOO);
+    x.font = `800 ${s1}px ${BALOO}`;
+    x.fillText(o.ten, 0, 26);
+    if (o.phu) {
+      x.fillStyle = "#64748b";
+      x.font = `500 14px ${BVP}`;
+      x.fillText(o.phu, 0, 54);
+    }
+    x.restore();
+    return c;
+  }
+
+  const daiH = o.loai === "dat" ? 70 : 52;
+  x.fillStyle = mau; x.fillRect(0, 0, W, daiH);
+  x.fillStyle = "rgba(255,255,255,.22)"; x.fillRect(0, 0, W, 5);
+  x.fillStyle = "rgba(0,0,0,.16)"; x.fillRect(0, daiH - 5, W, 5);
+  x.textAlign = "center"; x.textBaseline = "middle";
+
+  if (o.loai === "dat") {
+    const g = NHOM[o.nhom!];
+    x.fillStyle = "rgba(255,255,255,.96)";
+    const sg = chuVua(x, g.ten.toUpperCase(), W - 20, 19, "700", BVP);
+    x.font = `700 ${sg}px ${BVP}`;
+    x.fillText(g.ten.toUpperCase(), W / 2, daiH / 2);
+
+    x.fillStyle = "#13203a";
+    const sn = chuVua(x, o.ten, W - 24, 36, "800", BALOO);
+    x.font = `800 ${sn}px ${BALOO}`;
+    x.fillText(o.ten, W / 2, daiH + 60);
+
+    x.strokeStyle = `${mau}55`; x.lineWidth = 3;
+    x.beginPath(); x.moveTo(W / 2 - 34, daiH + 92); x.lineTo(W / 2 + 34, daiH + 92); x.stroke();
+
+    x.fillStyle = mau; x.font = `800 44px ${BALOO}`;
+    x.fillText(`${o.gia}K`, W / 2, H - 58);
+    x.fillStyle = "#9aa7b8"; x.font = `600 15px ${BVP}`;
+    x.fillText("GIÁ MUA", W / 2, H - 24);
+  } else if (o.loai === "bien" || o.loai === "tienich") {
+    x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 17px ${BVP}`;
+    x.fillText(tenLoaiO(o).toUpperCase(), W / 2, daiH / 2);
+    x.fillStyle = mau; x.font = `700 54px ${BALOO}`;
+    x.fillText(o.loai === "bien" ? "⚓" : o.ten.includes("ĐIỆN") ? "⚡" : "💧", W / 2, daiH + 62);
+    x.fillStyle = "#13203a";
+    const sb = chuVua(x, o.ten, W - 20, 26, "800", BALOO);
+    x.font = `800 ${sb}px ${BALOO}`;
+    x.fillText(o.ten, W / 2, daiH + 128);
+    if (o.phu) {
+      x.fillStyle = "#9aa7b8"; x.font = `500 14px ${BVP}`;
+      x.fillText(o.phu, W / 2, daiH + 154);
+    }
+    x.fillStyle = mau; x.font = `800 36px ${BALOO}`;
+    x.fillText(`${o.gia}K`, W / 2, H - 34);
+  } else {
+    const nhan: Record<string, string> = { cohoi: "CƠ HỘI", khivan: "KHÍ VẬN", thue: "THUẾ" };
+    const bieu: Record<string, string> = { cohoi: "?", khivan: "✦", thue: "₫" };
+    x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 17px ${BVP}`;
+    x.fillText(nhan[o.loai], W / 2, daiH / 2);
+    x.fillStyle = `${mau}22`;
+    x.beginPath(); x.arc(W / 2, H / 2 + 10, 62, 0, Math.PI * 2); x.fill();
+    x.fillStyle = mau; x.font = `800 92px ${BALOO}`;
+    x.fillText(bieu[o.loai], W / 2, H / 2 + 18);
+    if (o.loai === "thue") {
+      x.fillStyle = "#13203a";
+      const st = chuVua(x, o.ten, W - 20, 21, "800", BALOO);
+      x.font = `800 ${st}px ${BALOO}`;
+      x.fillText(o.ten, W / 2, H - 56);
+      x.fillStyle = "#9aa7b8"; x.font = `600 18px ${BVP}`;
+      x.fillText(`Nộp ${o.thue}K`, W / 2, H - 26);
+    }
+  }
+  return c;
+}
+
+function matXucXac(n: number): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const x = c.getContext("2d")!;
+  x.fillStyle = "#fbfcfe"; x.fillRect(0, 0, 128, 128);
+  x.fillStyle = "#d93b4e";
+  const P: Record<number, [number, number][]> = {
+    1: [[64, 64]], 2: [[36, 36], [92, 92]], 3: [[34, 34], [64, 64], [94, 94]],
+    4: [[36, 36], [92, 36], [36, 92], [92, 92]],
+    5: [[34, 34], [94, 34], [64, 64], [34, 94], [94, 94]],
+    6: [[36, 30], [36, 64], [36, 98], [92, 30], [92, 64], [92, 98]],
+  };
+  for (const [px, py] of P[n]) { x.beginPath(); x.arc(px, py, 11, 0, Math.PI * 2); x.fill(); }
+  return c;
+}
+
+function texCuaSo(): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 256;
+  const x = c.getContext("2d")!;
+  x.fillStyle = "#000"; x.fillRect(0, 0, 128, 256);
+  for (let r = 0; r < 11; r++) {
+    for (let k = 0; k < 4; k++) {
+      if (Math.random() < 0.26) continue;
+      x.fillStyle = "#fff";
+      x.fillRect(12 + k * 27, 14 + r * 21, 16, 12);
+    }
+  }
+  return c;
+}
+
+function texCo(): HTMLCanvasElement {
+  const S = 1024;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const x = c.getContext("2d")!;
+  x.fillStyle = css("--grass"); x.fillRect(0, 0, S, S);
+  x.fillStyle = css("--grass-2");
+  for (let i = 0; i < S; i += 96) x.fillRect(i, 0, 48, S);
+  x.globalAlpha = 0.07; x.fillStyle = "#000";
+  for (let k = 0; k < 2200; k++) {
+    x.beginPath(); x.arc(Math.random() * S, Math.random() * S, 1 + Math.random() * 2.4, 0, Math.PI * 2); x.fill();
+  }
+  x.globalAlpha = 1;
+  x.save();
+  x.translate(S / 2, S / 2);
+  x.textAlign = "center"; x.textBaseline = "middle";
+  x.globalAlpha = 0.19; x.fillStyle = "#fff";
+  x.font = '800 132px "Baloo 2", system-ui, sans-serif'; x.fillText("CỜ TỶ PHÚ", 0, -56);
+  x.font = '800 96px "Baloo 2", system-ui, sans-serif'; x.fillText("VIỆT NAM", 0, 56);
+  x.globalAlpha = 0.16; x.strokeStyle = "#fff"; x.lineWidth = 8;
+  x.beginPath(); x.moveTo(-250, 126); x.lineTo(250, 126); x.stroke();
+  x.restore();
+  return c;
+}
+
+function texMay(): HTMLCanvasElement {
+  const W = 256, H = 140;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d")!;
+  for (const [bx, by, r] of [[72, 86, 46], [128, 70, 56], [180, 88, 42], [102, 96, 40], [158, 98, 38]]) {
+    const g = x.createRadialGradient(bx, by, 0, bx, by, r);
+    g.addColorStop(0, "rgba(255,255,255,.98)");
+    g.addColorStop(0.6, "rgba(255,255,255,.72)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = g; x.beginPath(); x.arc(bx, by, r, 0, Math.PI * 2); x.fill();
+  }
+  return c;
+}
+
+function nenTroi(): HTMLCanvasElement {
+  const c = document.createElement("canvas");
+  c.width = 8; c.height = 512;
+  const x = c.getContext("2d")!;
+  const g = x.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, css("--sky-1"));
+  g.addColorStop(0.55, css("--sky-2"));
+  g.addColorStop(1, css("--sky-3"));
+  x.fillStyle = g; x.fillRect(0, 0, 8, 512);
+  return c;
+}
+
+function texMoiTruong(): HTMLCanvasElement {
+  const W = 512, H = 256;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d")!;
+  const toi = laToi();
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, css("--sky-1"));
+  g.addColorStop(0.4, css("--sky-2"));
+  g.addColorStop(0.5, css("--sky-3"));
+  g.addColorStop(0.52, toi ? "#1b2a22" : "#9bae95");
+  g.addColorStop(1, toi ? "#0d1511" : "#6d7d6c");
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const sx = W * 0.72, sy = H * 0.2;
+  const sg = x.createRadialGradient(sx, sy, 0, sx, sy, H * 0.42);
+  sg.addColorStop(0, `rgba(255,252,238,${toi ? 0.45 : 1})`);
+  sg.addColorStop(0.2, `rgba(255,245,216,${toi ? 0.14 : 0.5})`);
+  sg.addColorStop(1, "rgba(255,245,216,0)");
+  x.fillStyle = sg; x.fillRect(0, 0, W, H * 0.52);
+  return c;
+}
+
+/* ====================================================================
+   Quân cờ: hàng đợi đường đi để nhảy từng ô một
+   ==================================================================== */
+interface Quan {
+  nhom: THREE.Group;
+  oHienTai: number;
+  duongDi: number[];
+  t: number;
+}
+
+/* ====================================================================
+   Lớp chính
+   ==================================================================== */
+export class BanCo3D {
+  private renderer: THREE.WebGLRenderer;
+  private scene = new THREE.Scene();
+  private camera: THREE.OrthographicCamera;
+  private composer!: EffectComposer;
+  private bloom!: UnrealBloomPass;
+  private pmrem: THREE.PMREMGenerator;
+  private envRT: THREE.WebGLRenderTarget | null = null;
+
+  private world = new THREE.Group();
+  private hemi: THREE.HemisphereLight;
+  private sun: THREE.DirectionalLight;
+  private fill: THREE.DirectionalLight;
+  private rim: THREE.DirectionalLight;
+
+  private bgTex: THREE.CanvasTexture;
+  private coTex: THREE.CanvasTexture;
+  private matTop = M("#5c84ad", 0.9);
+  private matSide = M("#43688e", 0.95);
+  private matDeep = M("#2f4c6c", 1);
+  private matRock = M("#27425e", 1);
+  private matKerb = M("#e4d9b8", 0.9);
+  private matCoNen = M("#78c553", 1);
+  private vatLieuCuaSo: THREE.MeshStandardMaterial[] = [];
+
+  private oMeshes: THREE.Mesh[] = [];
+  private viTri: ViTriO[] = [];
+  private soHuu = new Map<number, THREE.Group>();
+  private quan = new Map<string, Quan>();
+  private dice: THREE.Mesh[] = [];
+  private may: THREE.Sprite[] = [];
+  private cocTien: THREE.Group[] = [];
+
+  private raycaster = new THREE.Raycaster();
+  private chuot = new THREE.Vector2();
+  private onChonO?: (i: number) => void;
+  private dong = 0;
+  private khungCanCapNhat = true;
+  private lechTrai = 0;
+  private huy = false;
+
+  constructor(private canvas: HTMLCanvasElement) {
+    const cao = window.innerWidth >= 860;
+
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, cao ? 2 : 1.5));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    this.bgTex = new THREE.CanvasTexture(nenTroi());
+    this.bgTex.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = this.bgTex;
+    this.scene.fog = new THREE.Fog(new THREE.Color(css("--sky-2")), 70, 142);
+
+    this.camera = new THREE.OrthographicCamera(-20, 20, 20, -20, -80, 160);
+    this.camera.position.copy(new THREE.Vector3(1, 1.08, 1).normalize().multiplyScalar(60));
+    this.camera.lookAt(0, 0, 0);
+    this.camera.updateMatrixWorld();
+
+    this.hemi = new THREE.HemisphereLight(0xffffff, 0x9fb2c6, 0.12);
+    this.sun = new THREE.DirectionalLight(0xfff2d8, 1.45);
+    this.sun.position.set(19, 23, 13);
+    this.sun.castShadow = true;
+    const sm = cao ? 4096 : 2048;
+    this.sun.shadow.mapSize.set(sm, sm);
+    const sc = this.sun.shadow.camera;
+    sc.left = -20; sc.right = 20; sc.top = 20; sc.bottom = -20; sc.near = 1; sc.far = 80;
+    this.sun.shadow.bias = -0.0004;
+    this.sun.shadow.normalBias = 0.025;
+    this.fill = new THREE.DirectionalLight(0xbcd9ff, 0.26);
+    this.fill.position.set(-20, 11, -15);
+    this.rim = new THREE.DirectionalLight(0xffffff, 0.3);
+    this.rim.position.set(-8, 5, 18);
+    this.scene.add(this.hemi, this.sun, this.fill, this.rim, this.world);
+
+    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.pmrem.compileEquirectangularShader();
+
+    this.coTex = new THREE.CanvasTexture(texCo());
+    this.coTex.colorSpace = THREE.SRGBColorSpace;
+    this.coTex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+
+    this.dungBan();
+    this.dungHauKy();
+    this.dongBoMau();
+    this.ganSuKien();
+    this.ve();
+  }
+
+  /* ---------------------------------------------------------- dựng cảnh */
+
+  private dungBan() {
+    // ExtrudeGeometry chia hai nhóm vật liệu: nhóm 0 là hai mặt phẳng, nhóm 1 là cạnh.
+    const slab = new THREE.Mesh(hopBo(BIA * 2, 1.15, BIA * 2, 1.6, 0.14), [this.matTop, this.matSide]);
+    slab.position.set(0, -1.15, 0);
+    slab.castShadow = true;
+    slab.receiveShadow = true;
+    this.world.add(slab);
+    this.world.add(khoi(hopBo(BIA * 2 - 1.3, 1.1, BIA * 2 - 1.3, 1.4, 0.1), this.matDeep, 0, -2.2, 0));
+
+    const daDay = khoi(new THREE.ConeGeometry(BIA * 0.92, 3.6, 7), this.matRock, 0, -2.1, 0);
+    daDay.rotation.x = Math.PI; daDay.rotation.y = 0.4;
+    this.world.add(daDay);
+    for (const [x, y, z, r] of [[5.5, -3.6, 3.2, 2.1], [-6.2, -3.9, -4.0, 2.6], [1.5, -4.6, -6.0, 1.7]]) {
+      const m = khoi(new THREE.ConeGeometry(r, r * 1.5, 6), this.matRock, x, y, z);
+      m.rotation.x = Math.PI; m.rotation.y = Math.random() * 3;
+      this.world.add(m);
+    }
+
+    const SAN = (NUA - SAU) * 2;
+    this.world.add(khoi(hopBo(SAN + 0.55, 0.16, SAN + 0.55, 1.05, 0.05), this.matKerb));
+    this.world.add(khoi(hopBo(SAN, 0.2, SAN, 0.9, 0.05), this.matCoNen));
+    const mc = khoi(new THREE.PlaneGeometry(SAN - 0.26, SAN - 0.26),
+      new THREE.MeshStandardMaterial({ map: this.coTex, roughness: 1 }), 0, 0.202, 0);
+    mc.rotation.x = -Math.PI / 2;
+    mc.castShadow = false;
+    this.world.add(mc);
+
+    const cuaSo = new THREE.CanvasTexture(texCuaSo());
+    cuaSo.wrapS = cuaSo.wrapT = THREE.RepeatWrapping;
+    const matO = M(0xffffff, 0.8);
+
+    BAN_CO.forEach((o, i) => {
+      const v = viTriCuaO(i);
+      this.viTri.push(v);
+      const w = v.goc ? GOC : RONG;
+      const d = v.goc ? GOC : SAU;
+
+      const g = new THREE.Group();
+      g.position.set(v.x, 0, v.z);
+      g.rotation.y = v.ry;
+
+      const than = khoi(hopBo(w - 0.07, DAY, d - 0.07, 0.17, 0.055), matO);
+      than.userData.index = i;
+      g.add(than);
+      this.oMeshes.push(than);
+
+      const tex = new THREE.CanvasTexture(veNhan(o, v.goc));
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+      const nhan = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.26, d - 0.26),
+        new THREE.MeshBasicMaterial({ map: tex }));
+      nhan.rotation.x = -Math.PI / 2;
+      nhan.position.y = DAY + 0.006;
+      g.add(nhan);
+      this.world.add(g);
+
+      // công trình biểu tượng trên viền ngoài
+      const len = Math.hypot(v.ox, v.oz) || 1;
+      const day = v.goc ? GOC / 2 + VIEN * 0.52 : SAU / 2 + VIEN * 0.46;
+      const px = v.x + (v.ox / len) * day;
+      const pz = v.z + (v.oz / len) * day;
+      const prop = v.goc ? trangTriGoc(o.icon) : o.moc && MOC[o.moc] ? MOC[o.moc](cuaSo, this.vatLieuCuaSo) : null;
+      if (prop) {
+        prop.position.set(px, 0, pz);
+        prop.rotation.y = v.ry;
+        prop.scale.setScalar(v.goc ? 1.05 : 0.95);
+        prop.traverse((m) => {
+          if (!(m instanceof THREE.Mesh)) return;
+          m.castShadow = true;
+          m.receiveShadow = true;
+          const mat = m.material as THREE.MeshStandardMaterial;
+          if (mat?.color) damMau(mat.color);
+        });
+        this.world.add(prop);
+      }
+    });
+
+    // xúc xắc
+    this.dice = [0, 1].map((i) => {
+      const mats = [1, 6, 2, 5, 3, 4].map((n) => {
+        const t = new THREE.CanvasTexture(matXucXac(n));
+        t.colorSpace = THREE.SRGBColorSpace;
+        return new THREE.MeshPhysicalMaterial({
+          map: t, roughness: 0.28, metalness: 0.04, clearcoat: 0.8, clearcoatRoughness: 0.14, envMapIntensity: 1.2,
+        });
+      });
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 1.1), mats);
+      m.position.set(i ? 1.35 : -1.35, 0.72, i ? 0.95 : -0.45);
+      m.castShadow = true;
+      this.world.add(m);
+      return m;
+    });
+
+    // cọc tiền trang trí
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(([sx, sz], idx) => {
+      const g = new THREE.Group();
+      for (let i = 0; i < 4; i++) {
+        const t = khoi(hopBo(1.5, 0.16, 0.8, 0.05, 0.03), M(i % 2 ? 0x7fc46b : 0x6bb45a, 0.88), (i % 2) * 0.1, i * 0.17, (i % 2) * 0.08);
+        t.rotation.y = (Math.random() - 0.5) * 0.3;
+        g.add(t);
+      }
+      for (let k = 0; k < 3; k++) {
+        g.add(khoi(hopBo(0.75, 0.22, 0.42, 0.07, 0.04), Mp(0xf0b429, 0.2, 1, 0.25), -1.3, 0.11 + k * 0.23, 0.5 - k * 0.1));
+      }
+      g.position.set(sx * (BIA + 1.5), -1.5, sz * (BIA + 1.5));
+      g.rotation.y = idx * 1.3;
+      g.scale.setScalar(1.3);
+      g.userData = { y0: -1.5, ph: idx * 1.7 };
+      this.world.add(g);
+      this.cocTien.push(g);
+    });
+
+    // mây
+    const mayTex = new THREE.CanvasTexture(texMay());
+    for (let i = 0; i < 13; i++) {
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mayTex, transparent: true, depthWrite: false }));
+      const a = Math.random() * Math.PI * 2;
+      const r = 18 + Math.random() * 16;
+      const s = 5 + Math.random() * 7;
+      sp.scale.set(s, s * 0.5, 1);
+      sp.position.set(Math.cos(a) * r, -3 + Math.random() * 9, Math.sin(a) * r);
+      sp.material.opacity = 0.45 + Math.random() * 0.45;
+      sp.userData = { a, r, sp: 0.00018 + Math.random() * 0.00032, y: sp.position.y, ph: Math.random() * 6 };
+      this.scene.add(sp);
+      this.may.push(sp);
+    }
+  }
+
+  private dungHauKy() {
+    const s = new THREE.Vector2();
+    this.renderer.getDrawingBufferSize(s);
+    const rt = new THREE.WebGLRenderTarget(Math.max(1, s.x), Math.max(1, s.y), {
+      samples: window.innerWidth >= 860 ? 4 : 2,
+      type: THREE.HalfFloatType,
+    });
+    this.composer = new EffectComposer(this.renderer, rt);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloom = new UnrealBloomPass(s, 0.22, 0.6, 0.85);
+    this.composer.addPass(this.bloom);
+    // OutputPass lo tone mapping và chuyển sang sRGB ở cuối chuỗi, nên quầng
+    // sáng được tính trong không gian tuyến tính — đúng về mặt vật lý.
+    this.composer.addPass(new OutputPass());
+  }
+
+  /* ------------------------------------------------------------ ánh sáng */
+
+  dongBoMau() {
+    this.bgTex.image = nenTroi();
+    this.bgTex.needsUpdate = true;
+    this.coTex.image = texCo();
+    this.coTex.needsUpdate = true;
+    this.matTop.color.set(css("--slab-top"));
+    this.matSide.color.set(css("--slab-side"));
+    this.matDeep.color.set(css("--slab-deep"));
+    this.matRock.color.set(css("--rock"));
+    this.matKerb.color.set(css("--kerb"));
+    this.matCoNen.color.set(css("--grass"));
+
+    const toi = laToi();
+    this.hemi.intensity = toi ? 0.09 : 0.12;
+    this.sun.intensity = toi ? 0.45 : 1.45;
+    this.sun.color.set(toi ? 0xa9c6ff : 0xfff2d8);
+    this.fill.intensity = toi ? 0.18 : 0.26;
+    this.rim.intensity = toi ? 0.24 : 0.3;
+    this.renderer.toneMappingExposure = toi ? 0.6 : 0.55;
+    (this.scene.fog as THREE.Fog).color.set(css("--sky-2"));
+    // Chuỗi hậu kỳ chạy trong không gian tuyến tính, nên đặt ngưỡng ở 1.0:
+    // chỉ những gì thực sự phát sáng mới toả quầng, mặt ô trắng thì không.
+    if (this.bloom) {
+      this.bloom.strength = toi ? 0.5 : 0.28;
+      this.bloom.threshold = 1.0;
+      this.bloom.radius = toi ? 0.7 : 0.5;
+    }
+    for (const m of this.vatLieuCuaSo) {
+      m.emissive.set(toi ? 0xffcb6b : 0x000000);
+      m.emissiveIntensity = toi ? 2.6 : 0;
+    }
+    for (const s of this.may) s.material.color.set(toi ? 0x5e7ba8 : 0xffffff);
+
+    if (this.envRT) this.envRT.dispose();
+    const t = new THREE.CanvasTexture(texMoiTruong());
+    t.mapping = THREE.EquirectangularReflectionMapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    this.envRT = this.pmrem.fromEquirectangular(t);
+    this.scene.environment = this.envRT.texture;
+    t.dispose();
+  }
+
+  /* --------------------------------------------------------- cập nhật */
+
+  capNhat(anh: AnhChup) {
+    // sở hữu, nhà, khách sạn
+    anh.o.forEach((tt, i) => this.veSoHuu(i, tt, anh));
+
+    // quân cờ
+    const conSong = new Set(anh.nguoiChoi.map((p) => p.sid));
+    for (const [sid, q] of this.quan) {
+      if (!conSong.has(sid)) { this.world.remove(q.nhom); this.quan.delete(sid); }
+    }
+    for (const p of anh.nguoiChoi) {
+      let q = this.quan.get(p.sid);
+      if (!q) {
+        q = { nhom: this.taoQuan(p.mau), oHienTai: p.viTri, duongDi: [], t: 0 };
+        this.world.add(q.nhom);
+        this.quan.set(p.sid, q);
+        this.datQuanVaoO(q, p.viTri, anh);
+      }
+      q.nhom.visible = !p.phaSan;
+      const dich = q.duongDi.length ? q.duongDi[q.duongDi.length - 1] : q.oHienTai;
+      if (dich !== p.viTri) this.lenDuongDi(q, dich, p.viTri);
+    }
+
+    // xúc xắc
+    if (anh.xx1 > 0 && anh.xx2 > 0) {
+      this.datMatXucXac(this.dice[0], anh.xx1);
+      this.datMatXucXac(this.dice[1], anh.xx2);
+    }
+  }
+
+  private taoQuan(mauIdx: number): THREE.Group {
+    const mau = new THREE.Color(MAU_NGUOI_CHOI[mauIdx % MAU_NGUOI_CHOI.length]);
+    const g = new THREE.Group();
+    g.add(khoi(new THREE.CylinderGeometry(0.33, 0.42, 0.13, 26), Mp(mau, 0.3, 0.2, 0.85), 0, 0.065, 0));
+    g.add(khoi(new THREE.CylinderGeometry(0.13, 0.26, 0.42, 22), Mp(mau, 0.3, 0.2, 0.85), 0, 0.33, 0));
+    g.add(khoi(new THREE.SphereGeometry(0.22, 26, 20), Mp(mau, 0.22, 0.25, 0.95), 0, 0.7, 0));
+    const vien = khoi(new THREE.TorusGeometry(0.2, 0.035, 10, 24), Mp(0xf7f9fc, 0.18, 0.6, 0.6), 0, 0.52, 0);
+    vien.rotation.x = Math.PI / 2;
+    g.add(vien);
+    return g;
+  }
+
+  private datQuanVaoO(q: Quan, i: number, anh: AnhChup) {
+    const v = this.viTri[i];
+    const lech = this.doLech(i, anh);
+    q.nhom.position.set(v.x + Math.cos(v.ry) * lech, DAY, v.z - Math.sin(v.ry) * lech);
+    q.oHienTai = i;
+  }
+
+  /** Nhiều quân cùng ô thì xoè ra cho khỏi chồng lên nhau. */
+  private doLech(i: number, anh: AnhChup): number {
+    const cung = anh.nguoiChoi.filter((p) => p.viTri === i && !p.phaSan);
+    if (cung.length <= 1) return 0;
+    return 0;
+  }
+
+  private lenDuongDi(q: Quan, tu: number, den: number) {
+    const tien = (den - tu + SO_O) % SO_O;
+    const buoc: number[] = [];
+    if (tien <= 18) {
+      for (let k = 1; k <= tien; k++) buoc.push((tu + k) % SO_O);
+    } else {
+      for (let k = 1; k <= SO_O - tien; k++) buoc.push((tu - k + SO_O) % SO_O);
+    }
+    q.duongDi = buoc;
+    q.t = 0;
+  }
+
+  private datMatXucXac(m: THREE.Mesh, n: number) {
+    const huong: [number, number, number][] = [
+      [0, -Math.PI / 2, 0], [Math.PI / 2, 0, 0], [0, 0, 0],
+      [0, Math.PI, 0], [-Math.PI / 2, 0, 0], [0, Math.PI / 2, 0],
+    ];
+    const [x, y, z] = huong[n - 1];
+    m.rotation.set(x, y, z);
+  }
+
+  private veSoHuu(i: number, tt: AnhChup["o"][number], anh: AnhChup) {
+    const cu = this.soHuu.get(i);
+    const khoa = `${tt.chu}|${tt.nha}|${tt.theChap}`;
+    if (cu && cu.userData.khoa === khoa) return;
+    if (cu) { this.world.remove(cu); this.soHuu.delete(i); }
+    if (!tt.chu) return;
+
+    const nguoi = anh.nguoiChoi.find((p) => p.sid === tt.chu);
+    if (!nguoi) return;
+    const o = BAN_CO[i];
+    const v = this.viTri[i];
+    const w = v.goc ? GOC : RONG;
+    const d = v.goc ? GOC : SAU;
+    const mau = new THREE.Color(MAU_NGUOI_CHOI[nguoi.mau % MAU_NGUOI_CHOI.length]);
+
+    const g = new THREE.Group();
+    g.position.set(v.x, DAY, v.z);
+    g.rotation.y = v.ry;
+    g.userData.khoa = khoa;
+
+    g.add(khoi(hopBo(w - 0.4, 0.06, 0.17, 0.05, 0.022),
+      Mp(tt.theChap ? 0x8b95a5 : mau, 0.45, 0.2, 0.5), 0, 0.016, d / 2 - 0.27));
+
+    if (o.loai === "dat" && tt.nha > 0) {
+      if (tt.nha >= 5) {
+        const ks = nhaMai(1.15, 0.48, 0.8, 0xfdfdfd, mau);
+        ks.position.set(0, 0, -d / 2 + 0.74);
+        ks.scale.setScalar(0.92);
+        g.add(ks);
+      } else {
+        for (let h = 0; h < tt.nha; h++) {
+          const nh = nhaMai(0.4, 0.3, 0.4, 0xfdfdfd, mau);
+          nh.position.set(-((tt.nha - 1) * 0.46) / 2 + h * 0.46, 0, -d / 2 + 0.5);
+          g.add(nh);
+        }
+      }
+    }
+    if (o.loai === "bien" || o.loai === "tienich") {
+      g.add(khoi(new THREE.CylinderGeometry(0.035, 0.035, 0.95, 6), M(0xe3e9f1, 0.7), w / 2 - 0.34, 0.47, -d / 2 + 0.42));
+      g.add(khoi(new THREE.PlaneGeometry(0.42, 0.27),
+        new THREE.MeshStandardMaterial({ color: mau, side: THREE.DoubleSide, roughness: 0.8 }),
+        w / 2 - 0.13, 0.82, -d / 2 + 0.42));
+    }
+    g.traverse((m) => { if (m instanceof THREE.Mesh) m.castShadow = true; });
+    this.world.add(g);
+    this.soHuu.set(i, g);
+  }
+
+  /* ------------------------------------------------------------ sự kiện */
+
+  setOnChonO(cb: (i: number) => void) { this.onChonO = cb; }
+
+  /** Dành chỗ bên trái màn hình cho bảng giá khi màn đủ rộng. */
+  datLechTrai(px: number) {
+    this.lechTrai = px;
+    this.khungCanCapNhat = true;
+  }
+
+  private ganSuKien() {
+    let dx = 0, dy = 0;
+    this.canvas.addEventListener("pointerdown", (e) => { dx = e.clientX; dy = e.clientY; });
+    this.canvas.addEventListener("pointerup", (e) => {
+      if (Math.abs(e.clientX - dx) + Math.abs(e.clientY - dy) > 10) return;
+      const i = this.oDuoiChuot(e);
+      if (i >= 0) this.onChonO?.(i);
+    });
+    this.canvas.addEventListener("pointermove", (e) => {
+      this.canvas.style.cursor = this.oDuoiChuot(e) >= 0 ? "pointer" : "default";
+    });
+  }
+
+  private oDuoiChuot(e: PointerEvent): number {
+    const r = this.canvas.getBoundingClientRect();
+    this.chuot.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    this.chuot.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.chuot, this.camera);
+    const hit = this.raycaster.intersectObjects(this.oMeshes, false);
+    return hit.length ? (hit[0].object.userData.index as number) : -1;
+  }
+
+  private dongKhung() {
+    const W = this.canvas.clientWidth;
+    const H = this.canvas.clientHeight;
+    if (W === 0 || H === 0) return;
+    this.renderer.setSize(W, H, false);
+    this.composer.setSize(W, H);
+
+    const R = BIA + 1.9;
+    const pts: THREE.Vector3[] = [];
+    for (const x of [-R, R]) for (const z of [-R, R]) for (const y of [-6.0, 4.0]) pts.push(new THREE.Vector3(x, y, z));
+
+    this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
+    let halfW = 0, halfH = 0;
+    const v = new THREE.Vector3();
+    for (const p of pts) {
+      v.copy(p).applyMatrix4(this.camera.matrixWorldInverse);
+      halfW = Math.max(halfW, Math.abs(v.x));
+      halfH = Math.max(halfH, Math.abs(v.y));
+    }
+
+    const padX = 14, padY = 72;
+    const usableW = Math.max(220, W - padX * 2 - this.lechTrai);
+    const usableH = Math.max(220, H - padY * 2);
+    const scale = Math.min(usableW / (halfW * 2), usableH / (halfH * 2));
+    const viewW = W / scale / 2;
+    const viewH = H / scale / 2;
+    const lech = this.lechTrai / 2 / scale;
+
+    this.camera.left = -viewW - lech;
+    this.camera.right = viewW - lech;
+    this.camera.top = viewH;
+    this.camera.bottom = -viewH;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /* -------------------------------------------------------- vòng lặp vẽ */
+
+  private ve = () => {
+    if (this.huy) return;
+    requestAnimationFrame(this.ve);
+
+    const W = this.canvas.clientWidth;
+    const H = this.canvas.clientHeight;
+    if (this.khungCanCapNhat || W !== this.canvas.width / this.renderer.getPixelRatio()) {
+      this.khungCanCapNhat = false;
+      this.dongKhung();
+    }
+
+    this.dong += 0.016;
+    this.world.position.y = Math.sin(this.dong * 0.55) * 0.1;
+    for (const g of this.cocTien) {
+      g.position.y = g.userData.y0 + Math.sin(this.dong * 0.7 + g.userData.ph) * 0.22;
+      g.rotation.y += 0.0015;
+    }
+    for (const s of this.may) {
+      const u = s.userData;
+      u.a += u.sp;
+      s.position.set(Math.cos(u.a) * u.r, u.y + Math.sin(this.dong * 0.35 + u.ph) * 0.35, Math.sin(u.a) * u.r);
+    }
+
+    // quân cờ nhảy từng ô một
+    for (const q of this.quan.values()) {
+      if (q.duongDi.length === 0) continue;
+      q.t += 0.075;
+      const tu = this.viTri[q.oHienTai];
+      const den = this.viTri[q.duongDi[0]];
+      const t = Math.min(1, q.t);
+      q.nhom.position.x = tu.x + (den.x - tu.x) * t;
+      q.nhom.position.z = tu.z + (den.z - tu.z) * t;
+      q.nhom.position.y = DAY + Math.sin(t * Math.PI) * 0.8;
+      if (t >= 1) {
+        q.oHienTai = q.duongDi.shift()!;
+        q.t = 0;
+      }
+    }
+
+    this.composer.render();
+  };
+
+  dispose() {
+    this.huy = true;
+    this.envRT?.dispose();
+    this.pmrem.dispose();
+    this.composer.dispose();
+    this.renderer.dispose();
+  }
+}
+
+/** Danh sách ô, để HUD dựng bảng giá mà không phải nhập lại dữ liệu. */
+export { BAN_CO };

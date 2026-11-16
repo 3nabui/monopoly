@@ -1,0 +1,20 @@
+{
+  "name": "co-ty-phu",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build:shared": "npm run build -w apps/shared",
+    "dev:server": "npm run build:shared && npm start -w apps/backend",
+    "dev:web": "npm run build:shared && npm run dev -w apps/frontend",
+    "build": "npm run build:shared && npm run build -w apps/backend && npm run build -w apps/frontend",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "test": "npm run build:shared && npm test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">= 22.0.0"
+  },
+  "version": "0.1.0",
+  "description": "Cờ tỷ phú Việt Nam — server Colyseus, client Three.js, luật chơi dùng chung"
+}
