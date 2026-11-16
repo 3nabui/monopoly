@@ -16,6 +16,14 @@ let sanh: Sanh | null = null;
 let nguoiDung: NguoiDung | null = null;
 let anh: AnhChup = anhChupRong();
 
+/**
+ * Người dùng đã bấm Chơi hay chưa.
+ *
+ * Chưa bấm thì cứ để họ đứng ở màn tham quan, kể cả khi đã đăng nhập sẵn từ
+ * lần trước — vào trang là thấy bàn cờ chứ không bị quăng thẳng vào sảnh.
+ */
+let muonChoi = false;
+
 /** Ba hàm callback mà mọi đường vào phòng đều dùng chung. */
 const khiVaoPhong = {
   onState: (a: AnhChup) => {
@@ -47,6 +55,21 @@ function dongSanh() {
 }
 
 const hud = new Hud({
+  onChoi: async () => {
+    muonChoi = true;
+    if (nguoiDung) {
+      hud.datManHinh("sanh");
+      await batDauSanh();
+    } else {
+      hud.datManHinh("dangnhap");
+    }
+  },
+
+  onQuayLaiThamQuan: () => {
+    muonChoi = false;
+    hud.datManHinh("thamquan");
+  },
+
   onDangNhapGoogle: async () => {
     try {
       await dangNhapGoogle();
@@ -166,7 +189,9 @@ void (async () => {
 
     if (!nd) {
       dongSanh();
-      hud.datManHinh("dangnhap");
+      // Đăng xuất giữa chừng thì về lại màn đăng nhập, còn mới vào trang
+      // lần đầu thì để người ta ngắm bàn cờ đã.
+      hud.datManHinh(muonChoi ? "dangnhap" : "thamquan");
       return;
     }
 
@@ -179,6 +204,12 @@ void (async () => {
         hud.datManHinh("phong");
         return;
       }
+    }
+
+    // Đã đăng nhập sẵn nhưng chưa bấm Chơi thì vẫn đứng ở màn tham quan.
+    if (!muonChoi) {
+      hud.datManHinh("thamquan");
+      return;
     }
 
     hud.datManHinh("sanh");

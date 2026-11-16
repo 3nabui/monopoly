@@ -7,9 +7,17 @@ import {
 } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
 
-export type ManHinh = "dangnhap" | "sanh" | "phong";
+/**
+ * Bốn màn của trang. "thamquan" là màn mặc định lúc mới vào: chỉ có bàn cờ
+ * và một nút Chơi, chưa đòi đăng nhập gì cả.
+ */
+export type ManHinh = "thamquan" | "dangnhap" | "sanh" | "phong";
 
 export interface HudCallbacks {
+  /** Bấm nút Chơi ở màn tham quan. */
+  onChoi(): void;
+  /** Quay từ màn đăng nhập về lại màn tham quan. */
+  onQuayLaiThamQuan(): void;
   onDangNhapGoogle(): void;
   onDangNhapKhach(ten: string): void;
   onDangXuat(): void;
@@ -55,10 +63,19 @@ export class Hud {
 
   /* ------------------------------------------------- đăng nhập và sảnh */
 
-  /** Hiện đúng một trong ba màn: đăng nhập, sảnh phòng, hoặc bàn chơi. */
+  /**
+   * Hiện đúng một trong bốn màn.
+   *
+   * Màn tham quan không phủ gì lên bàn cờ, chỉ thêm một nút Chơi ở đáy; đổi
+   * lại phải giấu thanh tung xúc xắc đi, không thì người xem thấy một nút
+   * TUNG XÚC XẮC mờ chẳng bấm được.
+   */
   datManHinh(man: ManHinh) {
+    $("manThamQuan").hidden = man !== "thamquan";
     $("manDangNhap").hidden = man !== "dangnhap";
     $("manSanh").hidden = man !== "sanh";
+    // Nút tung xúc xắc chỉ có nghĩa khi đã ở trong phòng.
+    $("thanhHanhDong").hidden = man !== "phong";
     if (man !== "phong") {
       $("manCho").hidden = true;
       $("manMatKhau").hidden = true;
@@ -147,6 +164,8 @@ export class Hud {
   // ------------------------------------------------------------ sự kiện
 
   private ganSuKien() {
+    $("btnChoi").addEventListener("click", () => this.cb.onChoi());
+    $("btnQuayLai").addEventListener("click", () => this.cb.onQuayLaiThamQuan());
     $("btnGoogle").addEventListener("click", () => {
       ($("btnGoogle") as HTMLButtonElement).disabled = true;
       this.cb.onDangNhapGoogle();

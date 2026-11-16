@@ -30,7 +30,14 @@
         </div>
         <div class="zoomhint" id="zoomhint" hidden>Kéo để di chuyển bàn cờ</div>
 
-        <div class="actionbar">
+        <!-- Màn tham quan: vào trang là thấy ngay bàn cờ, chưa bắt đăng nhập.
+             Xoay, phóng to, bấm vào từng ô xem giá đều được. -->
+        <div class="thamquan" id="manThamQuan">
+          <p class="loi">Xoay, phóng to, bấm vào từng ô để xem giá.</p>
+          <button class="choi" id="btnChoi" type="button">CHƠI NGAY</button>
+        </div>
+
+        <div class="actionbar" id="thanhHanhDong" hidden>
           <button class="roll" id="btnRoll" type="button" disabled>TUNG XÚC XẮC</button>
           <div class="dicebox" id="diceOut">Đang kết nối…</div>
         </div>
@@ -89,7 +96,7 @@
       <div class="toast" id="toast" hidden></div>
 
       <!-- 1. đăng nhập -->
-      <div class="overlay" id="manDangNhap">
+      <div class="overlay" id="manDangNhap" hidden>
         <div class="card">
           <h1>Cờ Tỷ Phú Việt</h1>
           <p class="sub">
@@ -112,6 +119,7 @@
             <input id="inpTenKhach" maxlength="16" autocomplete="nickname" placeholder="Ví dụ: Hùng" />
             <button class="big ghost" id="btnKhach" type="submit">Vào thử</button>
           </form>
+          <button class="big ghost" id="btnQuayLai" type="button">Quay lại xem bàn cờ</button>
         </div>
       </div>
 
