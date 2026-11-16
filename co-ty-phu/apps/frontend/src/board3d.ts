@@ -560,6 +560,54 @@ function veNhan(o: O, goc: boolean, dao: boolean): HTMLCanvasElement {
   // Dải màu nhóm nằm ở mép trong của ô. Tên nhóm không in ở đây nữa — màu đã
   // nói rõ rồi, bỏ đi thì tên thành phố có thêm chỗ để phóng to.
   const daiH = o.loai === "dat" ? 58 : 50;
+
+  // Nền theo chủ đề: ô biển có nước và đảo, ô đất có mảng màu nhóm nhạt,
+  // tiện ích và thuế có sắc riêng. Vẽ trước để chữ nằm đè lên trên.
+  if (o.loai === "bien") {
+    const gn = x.createLinearGradient(0, Y(daiH), 0, Y(H));
+    gn.addColorStop(0, "#9fdcef");
+    gn.addColorStop(0.55, "#cdeefa");
+    gn.addColorStop(1, "#fbfcfe");
+    x.fillStyle = gn; x.fillRect(0, Y(H), W, H - daiH);
+
+    // Sóng
+    x.strokeStyle = "rgba(255,255,255,.85)"; x.lineWidth = 4;
+    for (const [sy, lech] of [[96, 0], [124, 34], [152, -26]] as const) {
+      x.beginPath();
+      for (let px = -20; px <= W + 20; px += 10) {
+        const py = Y(sy + Math.sin((px + lech) / 22) * 5);
+        if (px === -20) x.moveTo(px, py); else x.lineTo(px, py);
+      }
+      x.stroke();
+    }
+
+    // Đảo cát với cây dừa
+    const cx = W / 2;
+    x.fillStyle = "#f3e2b4";
+    x.beginPath(); x.ellipse(cx, Y(206), 64, 21, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = "#e6d09a";
+    x.beginPath(); x.ellipse(cx + 10, Y(202), 32, 11, 0, 0, Math.PI * 2); x.fill();
+    x.strokeStyle = "#8a6a44"; x.lineWidth = 6; x.lineCap = "round";
+    x.beginPath(); x.moveTo(cx - 4, Y(204)); x.quadraticCurveTo(cx - 15, Y(234), cx - 7, Y(254)); x.stroke();
+    x.fillStyle = "#49a35e";
+    for (const a of [-1.15, -0.45, 0.45, 1.15]) {
+      x.save();
+      x.translate(cx - 7, Y(254));
+      x.rotate(dao ? Math.PI + a : a);
+      x.beginPath(); x.ellipse(0, -15, 8, 24, 0, 0, Math.PI * 2); x.fill();
+      x.restore();
+    }
+  } else if (o.loai === "dat") {
+    const gn = x.createLinearGradient(0, Y(daiH), 0, Y(H));
+    gn.addColorStop(0, `${mau}24`);
+    gn.addColorStop(0.5, `${mau}0a`);
+    gn.addColorStop(1, "#fbfcfe");
+    x.fillStyle = gn; x.fillRect(0, Y(H), W, H - daiH);
+  } else if (o.loai === "tienich" || o.loai === "thue") {
+    const nen = o.loai === "thue" ? "#eef1f6" : "#fdf4dd";
+    x.fillStyle = nen; x.fillRect(0, Y(H), W, H - daiH);
+  }
+
   x.fillStyle = mau; x.fillRect(0, Y(daiH), W, daiH);
   x.fillStyle = "rgba(255,255,255,.22)"; x.fillRect(0, Y(6), W, 6);
   x.fillStyle = "rgba(0,0,0,.16)"; x.fillRect(0, Y(daiH), W, 6);
@@ -575,12 +623,22 @@ function veNhan(o: O, goc: boolean, dao: boolean): HTMLCanvasElement {
     x.fillStyle = mau;
     x.font = `800 62px ${BALOO}`;
     x.fillText(`${o.gia}K`, W / 2, Y(324));
-  } else if (o.loai === "bien" || o.loai === "tienich") {
+  } else if (o.loai === "bien") {
+    // Đảo và sóng đã vẽ ở nền, nên không cần biểu tượng mỏ neo nữa.
     x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 22px ${BVP}`;
-    x.fillText(tenLoaiO(o).toUpperCase(), W / 2, Y(daiH / 2));
+    x.fillText("Ô BIỂN", W / 2, Y(daiH / 2));
+
+    x.fillStyle = "#13203a";
+    veDong(x, xepDong(x, o.ten, W - 18, 42, "800", BALOO, 2), W / 2, Y(300), "800", BALOO);
+
+    x.fillStyle = mau; x.font = `800 48px ${BALOO}`;
+    x.fillText(`${o.gia}K`, W / 2, Y(352));
+  } else if (o.loai === "tienich") {
+    x.fillStyle = "rgba(255,255,255,.96)"; x.font = `700 22px ${BVP}`;
+    x.fillText("TIỆN ÍCH", W / 2, Y(daiH / 2));
 
     x.fillStyle = mau; x.font = `700 68px ${BALOO}`;
-    x.fillText(o.loai === "bien" ? "⚓" : o.ten.includes("ĐIỆN") ? "⚡" : "💧", W / 2, Y(128));
+    x.fillText(o.ten.includes("ĐIỆN") ? "⚡" : "💧", W / 2, Y(128));
 
     x.fillStyle = "#13203a";
     veDong(x, xepDong(x, o.ten, W - 18, 44, "800", BALOO, 2), W / 2, Y(226), "800", BALOO);
@@ -636,6 +694,39 @@ function texCuaSo(): HTMLCanvasElement {
       if (Math.random() < 0.26) continue;
       x.fillStyle = "#fff";
       x.fillRect(12 + k * 27, 14 + r * 21, 16, 12);
+    }
+  }
+  return c;
+}
+
+/** Mặt nhựa có vạch kẻ đứt ở giữa, lặp dọc theo chiều dài mỗi đoạn đường. */
+function texDuong(vach: boolean): HTMLCanvasElement {
+  const W = 256, H = 64;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const x = c.getContext("2d")!;
+
+  x.fillStyle = "#59606b";
+  x.fillRect(0, 0, W, H);
+
+  // Hạt sạn cho mặt đường đỡ phẳng lì.
+  x.globalAlpha = 0.06;
+  for (let i = 0; i < 700; i++) {
+    x.fillStyle = Math.random() < 0.5 ? "#000" : "#fff";
+    x.fillRect(Math.random() * W, Math.random() * H, 1.6, 1.6);
+  }
+  x.globalAlpha = 1;
+
+  // Vệt sáng dọc hai mép cho giống lề đường.
+  x.fillStyle = "rgba(255,255,255,.12)";
+  x.fillRect(0, 0, W, 3);
+  x.fillRect(0, H - 3, W, 3);
+
+  if (vach) {
+    x.fillStyle = "rgba(255,255,255,.72)";
+    const dai = 46, cach = 38;
+    for (let px = 10; px < W; px += dai + cach) {
+      x.fillRect(px, H / 2 - 3, Math.min(dai, W - px), 6);
     }
   }
   return c;
@@ -852,6 +943,45 @@ export class BanCo3D {
     mc.rotation.x = -Math.PI / 2;
     mc.castShadow = false;
     this.world.add(mc);
+
+    /* ---- vòng đường nhựa chạy sát mép trong hàng ô ---- */
+    const RONG_DUONG = 1.25;
+    const MEP = SAN / 2 + 0.02;              // mép ngoài, nằm ngay dưới hàng ô
+    const GIUA = MEP - RONG_DUONG / 2;
+    const DAI = (MEP - RONG_DUONG) * 2;      // đoạn thẳng, chừa chỗ cho bốn góc
+
+    const texVach = new THREE.CanvasTexture(texDuong(true));
+    texVach.colorSpace = THREE.SRGBColorSpace;
+    texVach.wrapS = THREE.RepeatWrapping;
+    texVach.repeat.set(7, 1);
+    texVach.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    const matVach = new THREE.MeshStandardMaterial({ map: texVach, roughness: 0.96 });
+
+    const texTron = new THREE.CanvasTexture(texDuong(false));
+    texTron.colorSpace = THREE.SRGBColorSpace;
+    const matTron = new THREE.MeshStandardMaterial({ map: texTron, roughness: 0.96 });
+
+    // Bốn đoạn thẳng. Xoay quanh X để nằm ngang, xoay quanh Z để đổi chiều dài.
+    const doan: [number, number, number][] = [
+      [0, GIUA, 0], [0, -GIUA, 0], [GIUA, 0, Math.PI / 2], [-GIUA, 0, Math.PI / 2],
+    ];
+    for (const [dx, dz, xoay] of doan) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(DAI, RONG_DUONG), matVach);
+      m.rotation.set(-Math.PI / 2, 0, xoay);
+      m.position.set(dx, 0.206, dz);
+      m.receiveShadow = true;
+      this.world.add(m);
+    }
+    // Bốn góc bo vuông nối các đoạn lại.
+    for (const dx of [GIUA, -GIUA]) {
+      for (const dz of [GIUA, -GIUA]) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(RONG_DUONG, RONG_DUONG), matTron);
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(dx, 0.206, dz);
+        m.receiveShadow = true;
+        this.world.add(m);
+      }
+    }
 
     const cuaSo = new THREE.CanvasTexture(texCuaSo());
     cuaSo.wrapS = cuaSo.wrapT = THREE.RepeatWrapping;

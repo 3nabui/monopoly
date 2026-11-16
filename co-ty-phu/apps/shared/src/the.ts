@@ -1,18 +1,43 @@
 /**
- * Bộ thẻ Cơ hội và Khí vận.
+ * BỘ THẺ CƠ HỘI VÀ KHÍ VẬN
+ * ========================
  *
- * Số tiền ghi theo đơn vị K giống giá in trên bàn cờ; phòng chơi nhân với
- * DON_VI khi áp dụng.
+ * Đây là chỗ duy nhất cần sửa khi muốn thêm, bớt hoặc đổi nội dung thẻ.
+ * Sửa xong chạy lại `npm run dev:server` là có hiệu lực, không phải đụng
+ * chỗ nào khác.
+ *
+ * Mỗi thẻ gồm hai phần:
+ *   noiDung  — câu chữ hiện lên cho người chơi đọc
+ *   hieuUng  — việc server sẽ làm, chọn một trong các kiểu bên dưới
+ *
+ * Số tiền ghi theo đơn vị K giống giá in trên bàn cờ. 150 nghĩa là 150K,
+ * tức 150.000 trong game.
+ *
+ * Hai bộ được trộn riêng khi mở phòng. Rút xong thẻ xuống đáy bộ, nên cả
+ * bộ quay vòng đều chứ không lặp ngẫu nhiên.
  */
 
+/** Các kiểu hiệu ứng mà một thẻ có thể mang. */
 export type HieuUngThe =
+  /** Nhà băng trả cho người rút. */
   | { loai: "nhan"; so: number }
+  /** Người rút trả cho nhà băng. */
   | { loai: "nop"; so: number }
+  /** Mỗi người chơi khác trả cho người rút. */
   | { loai: "thuMoiNguoi"; so: number }
+  /** Người rút trả cho từng người chơi khác. */
   | { loai: "traMoiNguoi"; so: number }
+  /**
+   * Đi thẳng tới ô số `o`. Đây là ĐI TỚI chứ không phải lùi: người chơi
+   * vòng theo chiều thường và nhận lương nếu qua ô Xuất phát.
+   * Số ô xem trong board.ts, hoặc bảng trong LUAT-CHOI.md.
+   */
   | { loai: "diToi"; o: number }
+  /** Bị đưa thẳng vào Đảo Hoang, không đi qua ô nào nên không nhận lương. */
   | { loai: "vaoDao" }
+  /** Lùi lại `so` ô. Đây là cách duy nhất khiến quân đi ngược. */
   | { loai: "luiLai"; so: number }
+  /** Nộp tiền sửa chữa theo số nhà và khách sạn đang có. */
   | { loai: "suaNha"; moiNha: number; moiKhachSan: number };
 
 export interface The {
@@ -20,6 +45,10 @@ export interface The {
   hieuUng: HieuUngThe;
 }
 
+/**
+ * Thẻ CƠ HỘI — nghiêng về di chuyển và vận may.
+ * Ô số 7, 13, 20, 24, 34 trên bàn cờ.
+ */
 export const BO_CO_HOI: readonly The[] = [
   { noiDung: "Trúng thầu dự án ven biển, nhận 150K.", hieuUng: { loai: "nhan", so: 150 } },
   { noiDung: "Đi thẳng về ô Xuất phát và nhận lương.", hieuUng: { loai: "diToi", o: 0 } },
@@ -33,6 +62,10 @@ export const BO_CO_HOI: readonly The[] = [
   { noiDung: "Cổ tức quỹ đầu tư, nhận 50K.", hieuUng: { loai: "nhan", so: 50 } },
 ];
 
+/**
+ * Thẻ KHÍ VẬN — nghiêng về tiền bạc.
+ * Ô số 2, 16, 29 trên bàn cờ.
+ */
 export const BO_KHI_VAN: readonly The[] = [
   { noiDung: "Hoàn thuế cuối năm, nhận 200K.", hieuUng: { loai: "nhan", so: 200 } },
   { noiDung: "Viện phí sau chuyến leo núi, nộp 100K.", hieuUng: { loai: "nop", so: 100 } },

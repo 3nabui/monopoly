@@ -5,12 +5,13 @@ import {
   BAN_CO, DON_VI, LUONG, LUOT_KET_DAO, O_DAO_HOANG, O_XUAT_PHAT, SO_O,
   TIEN_BAN_DAU, TIEN_RA_DAO, coTheMua, coTheXay, dinhDang,
   giaMua, giaTheChap, giaXay, khaNangChiTra, taiSanRong, tienThue,
-  type DocO,
+  BO_CO_HOI, BO_KHI_VAN,
+  type DocO, type The,
 } from "@co-ty-phu/shared";
 import { luuVan, type NguoiTrongVan } from "../db/kho.js";
 import { GameState, NguoiChoi, DongNhatKy, TrangThaiO as OSchema } from "./schema/GameState.js";
 import { gieoXucXac, tron } from "../rng.js";
-import { BO_CO_HOI, BO_KHI_VAN, type The } from "../cards.js";
+
 
 /** Thời gian cho mỗi lượt tung xúc xắc. */
 const GIAY_TUNG = 30_000;
