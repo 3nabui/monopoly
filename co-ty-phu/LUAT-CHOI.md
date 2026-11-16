@@ -51,8 +51,8 @@ Bốn ô góc nằm ở vị trí 0, 8, 16, 24; mỗi cạnh có 7 ô thường 
 | 11 | Tràng An | Ninh Bình | 160K |
 | 12 | CƠ HỘI | thẻ | — |
 | 13 | Thiên Mụ | Thừa Thiên Huế | 180K |
-| 14 | Đại Nội | Thừa Thiên Huế | 180K |
-| 15 | Quốc Học Huế | Thừa Thiên Huế | 200K |
+| 14 | Biển Đà Nẵng | ô biển | 200K |
+| 15 | Đại Nội | Thừa Thiên Huế | 200K |
 | 16 | LỄ HỘI TOÀN QUỐC | góc | — |
 | 17 | Mỹ Sơn | Quảng Nam | 220K |
 | 18 | Biển Nha Trang | ô biển | 200K |
@@ -70,16 +70,12 @@ Bốn ô góc nằm ở vị trí 0, 8, 16, 24; mỗi cạnh có 7 ô thường 
 | 30 | ĐÓNG THUẾ | thuế | 10% tài sản, tối đa 200K |
 | 31 | Hoàn Kiếm | Hà Nội | 400K |
 
-Tám nhóm đất: Hà Giang, Lào Cai, Ninh Bình, Thừa Thiên Huế mỗi nhóm 3 ô;
-Lâm Đồng 3 ô; Quảng Nam, TP. Hồ Chí Minh, Hà Nội mỗi nhóm 2 ô. Tổng 21 ô đất.
+Tám nhóm đất: Hà Giang, Lào Cai, Ninh Bình, Lâm Đồng mỗi nhóm 3 ô; Thừa Thiên
+Huế, Quảng Nam, TP. Hồ Chí Minh, Hà Nội mỗi nhóm 2 ô. Tổng 20 ô đất.
+
+Bốn ô biển: Hạ Long (4), Đà Nẵng (14), Nha Trang (18), Phú Quốc (25).
 
 Số ô ở cột đầu chính là số dùng trong thẻ `diToi`.
-
-> **Cần anh/chị quyết:** luật "sở hữu 4 ô biển là thắng" nhưng bố cục chỉ có
-> **3 ô biển** (Hạ Long, Nha Trang, Phú Quốc). Hiện game lấy điều kiện là
-> **gom đủ toàn bộ ô biển đang có trên bàn, tức 3 ô**. Muốn đúng 4 thì phải
-> đổi một ô đang có thành ô biển — ví dụ biến ô 10 Hoa Lư thành Biển Đà Nẵng,
-> khi đó Ninh Bình còn 2 ô. Anh/chị chọn ô nào thì tôi đổi.
 
 ## Một lượt chơi
 
@@ -150,9 +146,10 @@ nhóm 80K, ba nhà 1.800K, khách sạn 5.000K.
 | 1 | 25K |
 | 2 | 60K |
 | 3 | 150K |
+| 4 | 300K |
 
-Mức thứ ba gần như không bao giờ thu được: gom đủ cả ba ô biển là thắng ngay,
-ván dừng tại đó.
+Mức thứ tư không bao giờ thu được: gom đủ cả bốn ô biển là thắng ngay, ván
+dừng tại đó.
 
 ## Mua đứt ô của người khác
 
@@ -186,7 +183,7 @@ hơn hẳn và chủ đất an toàn hơn.
 
 Ba cách, kiểm tra ngay sau mỗi lần một ô đổi chủ:
 
-1. **Gom đủ toàn bộ ô biển** (hiện là 3 ô) — thắng ngay.
+1. **Gom đủ toàn bộ 4 ô biển** — thắng ngay.
 2. **Sở hữu trọn 3 nhóm đất** — thắng ngay.
 3. **Là người cuối cùng chưa phá sản.**
 
@@ -259,8 +256,10 @@ Hết 25 giây thì server chọn thay.
 Ba điểm cần anh/chị biết vì tôi phải tự quyết:
 
 - **Cả bốn thẻ chỉ nhắm vào ô đất, không đụng tới ô biển.** Anh/chị viết "ô
-  đất" nên tôi hiểu theo nghĩa hẹp. Muốn cho phép đánh cả ô biển thì nói,
-  đó cũng là cách duy nhất để chặn một người gom biển thắng nhanh.
+  đất" nên tôi hiểu theo nghĩa hẹp. Hệ quả: không có cách nào cản một người
+  đang gom biển, mà ô biển lại dễ mua đứt (chỉ 400K vì không xây nhà được
+  nên vốn chủ cũ luôn đúng bằng giá mua). Muốn cho thẻ đánh được cả ô biển,
+  hoặc cấm mua đứt ô biển, thì nói — cả hai đều sửa nhanh.
 - **"Tặng cho người khác" hiện là tặng cho người ngồi kế tiếp** theo thứ tự
   đi. Bàn 2 người thì không có gì để bàn; bàn 3–4 người, muốn người rút được
   tự chọn tặng ai thì phải thêm một bước chọn nữa.

@@ -3,7 +3,8 @@ import { ColyseusTestServer, boot } from "@colyseus/testing";
 import { JWT } from "@colyseus/auth";
 import {
   BAC_KHACH_SAN, BAN_CO, O_DAO_HOANG, SO_BIEN, SO_NHOM_THANG, SO_O, TIEN_BAN_DAU,
-  bangThue, coTheXay, giaMua, giaMuaDut, giaXay, thangNgay, tienThue,
+  bangThue, bangThueBien, coTheXay, giaMua, giaMuaDut, giaXay, thangNgay,
+  tienThue,
 } from "@co-ty-phu/shared";
 import type { TrangThaiO } from "@co-ty-phu/shared";
 import appConfig from "../src/app.config.js";
@@ -27,15 +28,23 @@ describe("Phòng cờ tỷ phú", () => {
 
   /* ---------------------------------------------------- dữ liệu bàn cờ */
 
-  it("bàn cờ có đúng 32 ô: 21 ô đất, 3 ô biển, 4 góc, 3 cơ hội, 1 thuế", () => {
+  it("bàn cờ có đúng 32 ô: 20 ô đất, 4 ô biển, 4 góc, 3 cơ hội, 1 thuế", () => {
     assert.strictEqual(BAN_CO.length, 32);
     const dem = (loai: string) => BAN_CO.filter((o) => o.loai === loai).length;
-    assert.strictEqual(dem("dat"), 21);
-    assert.strictEqual(dem("bien"), 3);
+    assert.strictEqual(dem("dat"), 20);
+    assert.strictEqual(dem("bien"), 4);
     assert.strictEqual(dem("goc"), 4);
     assert.strictEqual(dem("cohoi"), 3);
     assert.strictEqual(dem("thue"), 1);
-    assert.strictEqual(SO_BIEN, 3, "SO_BIEN phải đếm đúng số ô biển trên bàn");
+    assert.strictEqual(SO_BIEN, 4, "SO_BIEN phải đếm đúng số ô biển trên bàn");
+  });
+
+  it("bảng tiền thuê ô biển có đúng một mức cho mỗi ô biển", () => {
+    const b = bangThueBien();
+    assert.strictEqual(b.length, SO_BIEN);
+    for (let i = 1; i < b.length; i++) {
+      assert.ok(b[i] > b[i - 1], `mức ${i + 1} ô biển phải cao hơn mức ${i}`);
+    }
   });
 
   it("bốn ô góc nằm đúng ở bốn góc, mỗi cạnh 7 ô thường", () => {

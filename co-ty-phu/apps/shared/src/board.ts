@@ -41,7 +41,7 @@ export const MAU_THUE = "#52607a";
 export const MAU_GOC = "#2f3d57";
 
 /**
- * Bàn cờ 32 ô: 4 ô góc, 21 ô đất chia thành 8 nhóm tỉnh thành, 3 ô biển,
+ * Bàn cờ 32 ô: 4 ô góc, 20 ô đất chia thành 8 nhóm tỉnh thành, 4 ô biển,
  * 3 ô Cơ hội và 1 ô thuế. Mỗi cạnh có 7 ô thường nằm giữa hai ô góc.
  *
  * Thứ tự đi là theo chiều tăng của i, quay vòng về 0 — tức thuận chiều kim
@@ -63,13 +63,13 @@ export const BAN_CO: readonly O[] = [
   { i: 11, loai: "dat",   ten: "Tràng An",      nhom: "ninhbinh", gia: 160, moc: "nuiSong" },
   { i: 12, loai: "cohoi", ten: "CƠ HỘI" },
   { i: 13, loai: "dat",   ten: "Thiên Mụ",      nhom: "hue",      gia: 180, moc: "thapChuong" },
-  { i: 14, loai: "dat",   ten: "Đại Nội",       nhom: "hue",      gia: 180, moc: "congThanh" },
-  { i: 15, loai: "dat",   ten: "Quốc Học Huế",  nhom: "hue",      gia: 200, moc: "phoCo" },
+  { i: 14, loai: "bien",  ten: "Biển Đà Nẵng",       phu: "Bãi Mỹ Khê", gia: 200, moc: "cauVong" },
+  { i: 15, loai: "dat",   ten: "Đại Nội",       nhom: "hue",      gia: 200, moc: "congThanh" },
 
   { i: 16, loai: "goc",   ten: "LỄ HỘI TOÀN QUỐC",   phu: "Nghỉ chân, không mất gì", icon: "lehoi" },
   { i: 17, loai: "dat",   ten: "Mỹ Sơn",        nhom: "quangnam", gia: 220, moc: "thapCham" },
   { i: 18, loai: "bien",  ten: "Biển Nha Trang",     phu: "Khánh Hòa", gia: 200, moc: "resort" },
-  { i: 19, loai: "dat",   ten: "Hội An",        nhom: "quangnam", gia: 240, moc: "cauVong" },
+  { i: 19, loai: "dat",   ten: "Hội An",        nhom: "quangnam", gia: 240, moc: "phoCo" },
   { i: 20, loai: "cohoi", ten: "CƠ HỘI" },
   { i: 21, loai: "dat",   ten: "Bảo Lộc",       nhom: "lamdong",  gia: 260, moc: "doiChe" },
   { i: 22, loai: "dat",   ten: "Đà Lạt",        nhom: "lamdong",  gia: 280, moc: "nhaTho" },
