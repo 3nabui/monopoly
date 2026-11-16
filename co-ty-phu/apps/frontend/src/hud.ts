@@ -423,15 +423,21 @@ export class Hud {
 
     // Bảng thuê theo bậc, chỉ có nghĩa với ô đất.
     const rent = $("apRent");
+    const rentHd = $("apRentHd");
     if (!gom && !chon && o?.loai === "dat") {
       const b = bangThue(o.gia!);
       const he = tt ? heSoLeHoi(tt) : 1;
       rent.hidden = false;
+      rentHd.hidden = false;
+      // "Chưa xây" chứ không phải "Mua đất": bốn con số này là TIỀN THUÊ theo
+      // từng bậc công trình, mà chúng đứng ngay cạnh ô "Giá mua" nên nhãn nào
+      // có chữ "mua" là lập tức bị đọc thành giá mua thứ hai.
       rent.innerHTML = [
-        ["Mua đất", b[0]], ["Trọn bộ", b[0] * 2], ["3 nhà", b[3]], ["Khách sạn", b[4]],
+        ["Chưa xây", b[0]], ["Trọn bộ", b[0] * 2], ["3 nhà", b[3]], ["Khách sạn", b[4]],
       ].map(([t, v]) => `<div><em>${t}</em><b>${(v as number) * he}K</b></div>`).join("");
     } else {
       rent.hidden = true;
+      rentHd.hidden = true;
     }
 
     // Con số lớn bên cạnh: giá mua, giá mua đứt, tiền thuê, giá xây, hay số
@@ -594,8 +600,8 @@ export class Hud {
     if (o.loai === "dat") {
       const b = bangThue(o.gia!).map((v) => v * he);
       rows.push(["Giá mua", tt ? dinhDang(giaMuaThucTe(o, tt)) : `${o.gia}K`]);
-      rows.push(["Thuê (mới cắm cờ)", `${b[0]}K`]);
-      rows.push(["Trọn nhóm, chưa xây", `${b[0] * 2}K`]);
+      rows.push(["Thuê khi chưa xây", `${b[0]}K`]);
+      rows.push(["Thuê khi trọn nhóm, chưa xây", `${b[0] * 2}K`]);
       (["1 nhà", "2 nhà", "3 nhà"] as const).forEach((t, k) => rows.push([t, `${b[k + 1]}K`]));
       rows.push(["Khách sạn", `${b[BAC_KHACH_SAN]}K`]);
       rows.push(["Giá xây mỗi bậc", `${Math.round(giaXay(o) / DON_VI)}K`]);
