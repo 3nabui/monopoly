@@ -41,6 +41,8 @@ COPY --from=build --chown=node:node /app/apps/shared/package.json  apps/shared/
 COPY --from=build --chown=node:node /app/apps/shared/dist          apps/shared/dist
 COPY --from=build --chown=node:node /app/apps/backend/package.json apps/backend/
 COPY --from=build --chown=node:node /app/apps/backend/build        apps/backend/build
+# Server tự chạy migration lúc khởi động nên thư mục này phải đi theo ảnh.
+COPY --from=build --chown=node:node /app/apps/backend/drizzle      apps/backend/drizzle
 
 EXPOSE 2567
 CMD ["node", "apps/backend/build/index.js"]

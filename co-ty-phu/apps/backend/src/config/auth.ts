@@ -11,7 +11,15 @@ import { docNguoiDung, luuNguoiDung } from "../db/kho.js";
  * và Room.onAuth xác minh lại.
  */
 
-auth.backend_url = process.env.BACKEND_URL ?? "http://localhost:2567";
+/**
+ * Địa chỉ công khai của chính server này. Google sẽ gọi ngược về
+ * <BACKEND_URL>/auth/provider/google/callback, nên đặt sai là đăng nhập hỏng.
+ *
+ * RENDER_EXTERNAL_URL do Render tự đặt sẵn, nhờ nó mà deploy lên Render
+ * không phải khai báo gì thêm. Chỗ khác thì đặt BACKEND_URL bằng tay.
+ */
+auth.backend_url =
+  process.env.BACKEND_URL ?? process.env.RENDER_EXTERNAL_URL ?? "http://localhost:2567";
 
 export interface NguoiDung {
   id: string;

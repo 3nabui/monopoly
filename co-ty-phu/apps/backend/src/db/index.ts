@@ -1,4 +1,6 @@
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 import * as bang from "./schema.js";
 
@@ -11,6 +13,23 @@ import * as bang from "./schema.js";
  */
 
 export type DB = NodePgDatabase<typeof bang>;
+
+/**
+ * Thư mục migration nằm ở apps/backend/drizzle. File này nằm ở src/db khi
+ * chạy bằng tsx và ở build/db sau khi biên dịch — cả hai đều cách thư mục
+ * đó đúng hai cấp, nên một đường dẫn tương đối là đủ cho cả hai.
+ */
+const THU_MUC_MIGRATION = fileURLToPath(new URL("../../drizzle", import.meta.url));
+
+/**
+ * Có phải nối tới Postgres ngoài mạng hay không. Chạy ở máy mình thì không
+ * bật TLS, còn dịch vụ trên mạng thì gần như luôn bắt buộc.
+ */
+function canSSL(url: string): boolean {
+  if (/[?&]sslmode=disable/.test(url)) return false;
+  if (/[?&]sslmode=/.test(url)) return true;
+  return !/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(url);
+}
 
 let pool: Pool | null = null;
 let db: DB | null = null;
@@ -35,11 +54,23 @@ export async function moDatabase(): Promise<DB | null> {
   }
 
   try {
-    pool = new Pool({ connectionString: url, max: 10, connectionTimeoutMillis: 4000 });
+    pool = new Pool({
+      connectionString: url,
+      max: 10,
+      connectionTimeoutMillis: 4000,
+      // Hầu hết dịch vụ Postgres trên mạng bắt buộc TLS nhưng dùng chứng chỉ
+      // nội bộ của họ, nên không kiểm chuỗi chứng chỉ. Ở máy mình thì tắt hẳn.
+      ssl: canSSL(url) ? { rejectUnauthorized: false } : undefined,
+    });
     // Thử một truy vấn thật để biết chắc nối được, chứ không chỉ tạo đối tượng.
     await pool.query("select 1");
     db = drizzle(pool, { schema: bang });
-    console.log("[db] Đã kết nối PostgreSQL.");
+
+    // Tự dựng bảng lúc khởi động. Nhờ vậy deploy lên một cơ sở dữ liệu trống
+    // là chạy được ngay, không phải nhớ chạy tay `npm run db:day`.
+    await migrate(db, { migrationsFolder: THU_MUC_MIGRATION });
+
+    console.log("[db] Đã kết nối PostgreSQL và dựng xong bảng.");
     return db;
   } catch (e) {
     console.warn(
