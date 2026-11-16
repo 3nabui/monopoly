@@ -13,7 +13,7 @@ export interface HudCallbacks {
   onDangNhapGoogle(): void;
   onDangNhapKhach(ten: string): void;
   onDangXuat(): void;
-  onTaoPhong(ten: string, matKhau: string): void;
+  onTaoPhong(ten: string, matKhau: string, soNguoi: number): void;
   onVaoPhong(roomId: string, matKhau: string): void;
   onRoiPhong(): void;
   onSanSang(): void;
@@ -163,8 +163,9 @@ export class Hud {
       e.preventDefault();
       const ten = ($("inpTenPhong") as HTMLInputElement).value.trim();
       const mk = ($("inpMatKhauPhong") as HTMLInputElement).value;
+      const soNguoi = Number(($("selSoNguoi") as HTMLSelectElement).value) || 2;
       ($("btnTaoPhong") as HTMLButtonElement).disabled = true;
-      this.cb.onTaoPhong(ten, mk);
+      this.cb.onTaoPhong(ten, mk, soNguoi);
     });
 
     $("formMatKhau").addEventListener("submit", (e) => {
@@ -267,9 +268,14 @@ export class Hud {
 
     const toi = anh.nguoiChoi.find((p) => p.sid === this.sid);
     $("btnSanSang").textContent = toi?.sanSang ? "Huỷ sẵn sàng" : "Sẵn sàng";
-    $("choSub").textContent = anh.nguoiChoi.length < 2
-      ? `Cần ít nhất 2 người, đang có ${anh.nguoiChoi.length}. Rủ thêm người vào phòng này.`
-      : "Tất cả bấm Sẵn sàng là ván bắt đầu.";
+
+    const thieu = anh.soNguoiCan - anh.nguoiChoi.length;
+    const chuaSanSang = anh.nguoiChoi.filter((p) => !p.sanSang).length;
+    $("choSub").textContent = thieu > 0
+      ? `Phòng ${anh.soNguoiCan} người, còn thiếu ${thieu}. Rủ thêm người vào phòng này.`
+      : chuaSanSang > 0
+        ? `Đủ ${anh.soNguoiCan} người, còn ${chuaSanSang} người chưa bấm Sẵn sàng.`
+        : "Tất cả đã sẵn sàng, ván bắt đầu ngay.";
   }
 
   private veNguoiChoi(anh: AnhChup, dau: boolean) {

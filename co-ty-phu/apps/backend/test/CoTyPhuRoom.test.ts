@@ -4,7 +4,7 @@ import { JWT } from "@colyseus/auth";
 import {
   BAC_KHACH_SAN, BAN_CO, O_DAO_HOANG, SO_BIEN, SO_NHOM_THANG, SO_O, TIEN_BAN_DAU,
   HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC, SO_LE_HOI_THUONG,
-  SO_NHA_TOI_DA, SO_KHACH_SAN_TOI_DA,
+  SO_NHA_TOI_DA, SO_KHACH_SAN_TOI_DA, SO_NGUOI_TOI_DA, SO_NGUOI_TOI_THIEU,
   bangThue, bangThueBien, coTheGiangCo, coTheMuaDut, coTheXay, giaMua,
   giaMuaDut, giaMuaThucTe, giaXay, thangNgay, tienThue,
 } from "@co-ty-phu/shared";
@@ -88,6 +88,46 @@ describe("Phòng cờ tỷ phú", () => {
     for (let i = 1; i < b.length; i++) {
       assert.ok(b[i] > b[i - 1], `mức ${i} phải cao hơn mức ${i - 1}`);
     }
+  });
+
+  /* ------------------------------------------------- số người mỗi phòng */
+
+  it("chủ phòng đặt số người, thiếu một người thì ván chưa chạy", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", { soNguoi: 3 });
+    assert.strictEqual(room.state.soNguoiCan, 3);
+
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
+    a.send("sanSang"); b.send("sanSang");
+    await room.waitForNextPatch();
+    assert.strictEqual(
+      room.state.giaiDoan, "cho",
+      "đủ người sẵn sàng nhưng chưa đủ đầu người thì vẫn phải chờ",
+    );
+
+    const c = await noi(room, "C");
+    c.send("sanSang");
+    await room.waitForNextPatch();
+    assert.strictEqual(room.state.giaiDoan, "tung", "đủ ba người sẵn sàng thì vào ván");
+  });
+
+  it("phòng chỉ nhận đúng số người chủ phòng đặt", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", { soNguoi: 2 });
+    await noi(room, "A");
+    await noi(room, "B");
+    await assert.rejects(() => noi(room, "C"), /DAY_PHONG|locked/);
+    assert.strictEqual(room.state.nguoiChoi.size, 2);
+  });
+
+  it("số người lạ do client gửi lên bị kẹp về khoảng cho phép", async () => {
+    const it1 = await colyseus.createRoom<GameState>("co_ty_phu", { soNguoi: 1 });
+    assert.strictEqual(it1.state.soNguoiCan, SO_NGUOI_TOI_THIEU);
+
+    const nhieu = await colyseus.createRoom<GameState>("co_ty_phu", { soNguoi: 99 });
+    assert.strictEqual(nhieu.state.soNguoiCan, SO_NGUOI_TOI_DA);
+
+    const bay = await colyseus.createRoom<GameState>("co_ty_phu", { soNguoi: "bốn" as any });
+    assert.strictEqual(bay.state.soNguoiCan, SO_NGUOI_TOI_THIEU);
   });
 
   /* ------------------------------------------------- đăng nhập và phòng */
@@ -582,7 +622,7 @@ describe("Phòng cờ tỷ phú", () => {
   it("bốn người chơi trọn một ván, không kẹt ở bất cứ giai đoạn nào", async function () {
     this.timeout(60_000);
 
-    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", { soNguoi: 4 });
     const ten = ["A", "B", "C", "D"];
     const client: Record<string, any> = {};
     for (const t of ten) {

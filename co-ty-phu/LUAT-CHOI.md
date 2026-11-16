@@ -25,7 +25,9 @@ Sửa xong chạy lại `npm run dev:server`. Nếu sửa trong `apps/shared` th
 
 ## Chuẩn bị
 
-- **2 đến 4 người**. Đủ 2 người và tất cả bấm Sẵn sàng là ván bắt đầu.
+- **Chủ phòng chọn số người** lúc tạo phòng: 2, 3 hoặc 4. Phòng chỉ nhận đúng
+  ngần ấy người, và phải đủ cả ngần ấy người cùng bấm Sẵn sàng thì ván mới
+  bắt đầu — thiếu một người là vẫn chờ.
 - Mỗi người cầm **1.500K** tiền mặt.
 - Mọi người xuất phát ở ô **Xuất phát** và đi **thuận chiều kim đồng hồ**.
 - Hộp cờ có **32 nhà** và **12 khách sạn**. Đây là giới hạn thật: hết nhà thì

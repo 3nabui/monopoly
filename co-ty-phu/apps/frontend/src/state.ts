@@ -76,6 +76,8 @@ export interface AnhChup {
   khachSanConLai: number;
   tenPhong: string;
   coMatKhau: boolean;
+  /** Số người chơi chủ phòng đặt; đủ ngần này và tất cả sẵn sàng thì vào ván. */
+  soNguoiCan: number;
   chuPhong: string;
   nguoiChoi: NguoiChoiVM[];
   o: OVM[];
@@ -89,7 +91,7 @@ export function anhChupRong(): AnhChup {
     tienCanGom: 0, kieuChon: "", oChonDuoc: [], nguoiChonDuoc: [], oDangTang: -1,
     congBo: "", congBoLoai: "", congBoAi: "", congBoSo: 0,
     nguoiThang: "", lyDoThang: "", nhaConLai: 32, khachSanConLai: 12,
-    tenPhong: "", coMatKhau: false, chuPhong: "",
+    tenPhong: "", coMatKhau: false, soNguoiCan: 2, chuPhong: "",
     nguoiChoi: [], o: [], nhatKy: [],
   };
 }

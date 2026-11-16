@@ -126,6 +126,11 @@ export const GameState = schema({
   /** Tên phòng do người tạo đặt, hiện ở sảnh và trên đầu màn chơi. */
   tenPhong: t.string().default(""),
   coMatKhau: t.boolean().default(false),
+  /**
+   * Số người chơi mà chủ phòng đặt lúc mở phòng. Phải đủ đúng ngần này
+   * người và tất cả bấm Sẵn sàng thì ván mới bắt đầu.
+   */
+  soNguoiCan: t.uint8().default(2),
   /** sessionId của người tạo phòng. */
   chuPhong: t.string().default(""),
 });

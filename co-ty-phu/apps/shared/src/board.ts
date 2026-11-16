@@ -15,6 +15,10 @@ export const TIEN_RA_DAO = 50 * DON_VI;
 /** Số lượt tối đa bị kẹt ở Đảo Hoang trước khi buộc phải nộp tiền. */
 export const LUOT_KET_DAO = 3;
 
+/** Số người chơi mà chủ phòng được chọn khi mở phòng. */
+export const SO_NGUOI_TOI_THIEU = 2;
+export const SO_NGUOI_TOI_DA = 4;
+
 /** Giới hạn thật của hộp cờ. */
 export const SO_NHA_TOI_DA = 32;
 export const SO_KHACH_SAN_TOI_DA = 12;

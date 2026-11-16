@@ -5,7 +5,7 @@ import {
   BAC_KHACH_SAN, BAN_CO, DON_VI, LUONG, LUOT_KET_DAO, LUOT_MAT_DIEN,
   O_DAO_HOANG, O_XUAT_PHAT, SO_NHOM_THANG, SO_O,
   TIEN_BAN_DAU, TIEN_RA_DAO,
-  SO_LE_HOI_THUONG,
+  SO_LE_HOI_THUONG, SO_NGUOI_TOI_DA, SO_NGUOI_TOI_THIEU,
   coTheBan, coTheGiangCo, coTheMua, coTheMuaDut, coTheXay, dinhDang,
   giaMuaDut, giaMuaThucTe, giaTheChap, giaXay, khaNangChiTra,
   taiSanRong, tenLeHoi, thangNgay, tienThue, tienThueO,
@@ -41,10 +41,13 @@ export const LOI = {
 export interface TuyChonVaoPhong {
   tenPhong?: string;
   matKhau?: string;
+  /** Chỉ có tác dụng lúc tạo phòng: số người chơi của ván này. */
+  soNguoi?: number;
 }
 
 export class CoTyPhuRoom extends Room<{ state: GameState }> {
-  maxClients = 4;
+  /** Đặt lại trong onCreate theo số người chủ phòng chọn. */
+  maxClients = SO_NGUOI_TOI_DA;
   state = new GameState();
 
   private dongHo?: Delayed;
@@ -78,6 +81,14 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     for (let i = 0; i < SO_O; i++) this.state.o.push(new OSchema());
     this.boCoHoi = tron([...BO_CO_HOI]);
 
+    // Số người chơi do chủ phòng chọn. Kẹp vào khoảng cho phép để client gửi
+    // số lạ cũng không mở được phòng một người hay phòng mười người.
+    const soNguoi = Math.round(Number(options.soNguoi));
+    this.state.soNguoiCan = Number.isFinite(soNguoi)
+      ? Math.min(SO_NGUOI_TOI_DA, Math.max(SO_NGUOI_TOI_THIEU, soNguoi))
+      : SO_NGUOI_TOI_THIEU;
+    this.maxClients = this.state.soNguoiCan;
+
     this.state.tenPhong =
       String(options.tenPhong ?? "").trim().slice(0, 24) || `Phòng ${this.roomId}`;
 
@@ -89,7 +100,10 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     }
 
     this.capNhatMoTa();
-    this.ghi("Phòng đã mở. Cần ít nhất 2 người và tất cả bấm Sẵn sàng.", "he-thong");
+    this.ghi(
+      `Phòng đã mở. Cần đủ ${this.state.soNguoiCan} người và tất cả bấm Sẵn sàng.`,
+      "he-thong",
+    );
   }
 
   /**
@@ -204,8 +218,11 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       if (!p) return;
       p.sanSang = !p.sanSang;
 
+      // Phải đủ đúng số người chủ phòng đặt, không thiếu một ai.
       const tatCa = [...this.state.nguoiChoi.values()];
-      if (tatCa.length >= 2 && tatCa.every((x) => x.sanSang)) this.batDauVan();
+      if (tatCa.length >= this.state.soNguoiCan && tatCa.every((x) => x.sanSang)) {
+        this.batDauVan();
+      }
     },
 
     tungXucXac: (client: Client) => {

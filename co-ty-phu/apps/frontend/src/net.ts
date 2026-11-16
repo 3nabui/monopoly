@@ -168,6 +168,7 @@ function doiSangAnhChup(state: any): AnhChup {
     khachSanConLai: state.khachSanConLai,
     tenPhong: state.tenPhong ?? "",
     coMatKhau: Boolean(state.coMatKhau),
+    soNguoiCan: state.soNguoiCan ?? 2,
     chuPhong: state.chuPhong ?? "",
     nguoiChoi,
     o: [...state.o].map((t: any) => ({
@@ -209,8 +210,13 @@ function ganPhong(room: Room, opt: TuyChonKetNoi): KetNoi {
   };
 }
 
-export async function taoPhong(ten: string, matKhau: string, opt: TuyChonKetNoi): Promise<KetNoi> {
-  const room = await client.create("co_ty_phu", { tenPhong: ten, matKhau });
+export async function taoPhong(
+  ten: string,
+  matKhau: string,
+  soNguoi: number,
+  opt: TuyChonKetNoi,
+): Promise<KetNoi> {
+  const room = await client.create("co_ty_phu", { tenPhong: ten, matKhau, soNguoi });
   return ganPhong(room, opt);
 }
 

@@ -72,10 +72,10 @@ const hud = new Hud({
     await dangXuat();
   },
 
-  onTaoPhong: async (ten, matKhau) => {
+  onTaoPhong: async (ten, matKhau, soNguoi) => {
     try {
       dongSanh();
-      mang = await taoPhong(ten, matKhau, khiVaoPhong);
+      mang = await taoPhong(ten, matKhau, soNguoi, khiVaoPhong);
       hud.datSid(mang.sid);
       hud.datManHinh("phong");
     } catch (e) {
