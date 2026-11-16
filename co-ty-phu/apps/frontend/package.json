@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm --prefix ../shared run build",
     "dev": "vite",
+    "prebuild": "npm --prefix ../shared run build",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "pretypecheck": "npm --prefix ../shared run build"
   },
   "dependencies": {
     "@colyseus/sdk": "^0.18.1",

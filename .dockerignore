@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/build
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+**/.DS_Store
+co-ty-phu/apps/frontend/dist
+co-ty-phu-viet.html
