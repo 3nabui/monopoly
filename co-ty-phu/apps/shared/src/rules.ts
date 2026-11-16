@@ -33,6 +33,46 @@ export const SO_BIEN = BAN_CO.filter((o) => o.loai === "bien").length;
 export const LUOT_MAT_DIEN = 5;
 
 /**
+ * LỄ HỘI
+ * ======
+ *
+ * Hai loại cờ lễ hội, đều làm ô đắt lên:
+ *
+ *   Lễ hội thường — đầu mỗi trận server giăng cờ ở SO_LE_HOI_THUONG ô ngẫu
+ *   nhiên (không phải ô góc, ô cơ hội hay ô thuế) và giữ nguyên suốt ván.
+ *   Không ai dời được, nên đó là hai điểm nóng cố định của bàn cờ.
+ *
+ *   Lễ hội toàn quốc — cả bàn chỉ có đúng một ô. Ai dừng ở ô góc Lễ hội toàn
+ *   quốc thì được dời nó về một ô đất của mình, giật khỏi tay người đang giữ.
+ *
+ * Một ô mang được cả hai cờ, khi đó hai hệ số nhân với nhau: 2 × 3 = 6 lần.
+ */
+export const SO_LE_HOI_THUONG = 2;
+export const HE_SO_LE_HOI = 2;
+export const HE_SO_LE_HOI_TOAN_QUOC = 3;
+
+/** Ô có được chọn làm chỗ giăng cờ lễ hội thường hay không. */
+export function coTheGiangCo(o: O): boolean {
+  return o.loai === "dat" || o.loai === "bien";
+}
+
+/**
+ * Hệ số nhân mà cờ lễ hội đang treo trên ô này mang lại: 1 nếu không có cờ,
+ * 2 hoặc 3 nếu có một cờ, 6 nếu có cả hai.
+ */
+export function heSoLeHoi(tt: TrangThaiO): number {
+  return (tt.leHoi ? HE_SO_LE_HOI : 1) * (tt.leHoiToanQuoc ? HE_SO_LE_HOI_TOAN_QUOC : 1);
+}
+
+/** Tên cờ đang treo trên ô, để hiện trong HUD. Rỗng nếu không có cờ nào. */
+export function tenLeHoi(tt: TrangThaiO): string {
+  if (tt.leHoi && tt.leHoiToanQuoc) return "Lễ hội thường + toàn quốc";
+  if (tt.leHoiToanQuoc) return "Lễ hội toàn quốc";
+  if (tt.leHoi) return "Lễ hội thường";
+  return "";
+}
+
+/**
  * Hệ số mua đứt: người mua trả gấp đôi số vốn chủ cũ đã bỏ vào ô.
  *
  * Để ở đây thành một con số duy nhất cho dễ cân lại. Càng cao thì mua đứt
@@ -81,9 +121,20 @@ export function bangThueBien(): number[] {
   return THUE_BIEN.slice(0, Math.max(1, SO_BIEN));
 }
 
-/** Giá mua ô, theo đơn vị gốc. */
+/** Giá niêm yết của ô, chưa tính cờ lễ hội. */
 export function giaMua(o: O): number {
   return (o.gia ?? 0) * DON_VI;
+}
+
+/**
+ * Giá phải trả để mua ô ngay lúc này: giá niêm yết nhân hệ số lễ hội.
+ *
+ * Giá xây và giá thế chấp cố ý KHÔNG chịu hệ số này. Lễ hội toàn quốc dời đi
+ * dời lại suốt ván, nếu nó kéo theo cả giá xây lẫn giá thế chấp thì mỗi lần
+ * dời là một lần xáo trộn sổ sách của mọi người.
+ */
+export function giaMuaThucTe(o: O, tt: TrangThaiO): number {
+  return giaMua(o) * heSoLeHoi(tt);
 }
 
 /** Giá xây mỗi bậc nhà trên ô đất, theo đơn vị gốc. */
@@ -115,7 +166,7 @@ export function soNhaThuong(tt: TrangThaiO): number {
  * không coi đó là mất mát hoàn toàn.
  */
 export function giaMuaDut(o: O, tt: TrangThaiO): number {
-  const von = giaMua(o) + (o.loai === "dat" ? soNhaThuong(tt) * giaXay(o) : 0);
+  const von = giaMuaThucTe(o, tt) + (o.loai === "dat" ? soNhaThuong(tt) * giaXay(o) : 0);
   return von * HE_SO_MUA_DUT;
 }
 
@@ -208,7 +259,7 @@ export function thangNgay(doc: DocO, chu: string): "bien" | "nhom" | null {
 }
 
 /**
- * Tiền thuê phải trả khi dừng ở ô i.
+ * Tiền thuê phải trả khi dừng ở ô i, đã nhân hệ số lễ hội.
  *
  * Trả về 0 khi ô chưa có chủ, đang thế chấp, đang mất điện, hoặc người dừng
  * chính là chủ.
@@ -219,6 +270,15 @@ export function tienThue(doc: DocO, i: number, nguoiDung: string): number {
   if (!o || !tt || !coTheMua(o)) return 0;
   if (!tt.chu || tt.chu === nguoiDung || tt.theChap) return 0;
   if (tt.matDien > 0) return 0;
+
+  return tienThueGoc(doc, i) * heSoLeHoi(tt);
+}
+
+/** Tiền thuê trước khi nhân hệ số lễ hội. Tách ra để HUD hiện được cả hai. */
+export function tienThueGoc(doc: DocO, i: number): number {
+  const o = BAN_CO[i];
+  const tt = doc(i);
+  if (!o || !tt || !tt.chu) return 0;
 
   if (o.loai === "dat") {
     const b = bangThue(o.gia!);

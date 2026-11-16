@@ -60,6 +60,16 @@ export interface TrangThaiO {
   theChap: boolean;
   /** Số lần tung xúc xắc còn lại mà ô này mất điện, 0 là bình thường. */
   matDien: number;
+  /**
+   * Lễ hội thường: đầu mỗi trận server giăng cờ ở 2 ô ngẫu nhiên và giữ
+   * nguyên suốt ván.
+   */
+  leHoi: boolean;
+  /**
+   * Lễ hội toàn quốc: cả bàn chỉ có đúng một ô mang cờ này. Ai dừng ở ô góc
+   * Lễ hội toàn quốc thì được dời nó về một ô đất của mình.
+   */
+  leHoiToanQuoc: boolean;
 }
 
 /** Giai đoạn của ván chơi. Server là nơi duy nhất đổi giá trị này. */
@@ -82,9 +92,14 @@ export type HanhDong =
   | "tudong"   // để server tự bán cho đủ tiền
   | "tieptuc";
 
-/** Việc thẻ cơ hội yêu cầu người rút chọn trên bàn cờ. */
+/**
+ * Việc server đang bắt người chơi chọn trên bàn cờ. Bốn kiểu đầu do thẻ cơ
+ * hội sinh ra, hai kiểu sau không phải thẻ.
+ */
 export type KieuChon =
-  | "phaBo"    // phá bỏ một ô của người khác, ô thành vô chủ
-  | "tangO"    // cho một ô của mình sang người kế tiếp
-  | "matDien"  // làm một ô của người khác mất điện
-  | "haBac";   // hạ một bậc công trình của người khác
+  | "phaBo"          // phá bỏ một ô của người khác, ô thành vô chủ
+  | "tangO"          // chọn một ô của mình để tặng
+  | "tangNguoi"      // bước hai của tặng ô: chọn tặng cho ai
+  | "matDien"        // làm một ô của người khác mất điện
+  | "haBac"          // hạ một bậc công trình của người khác
+  | "leHoiToanQuoc"; // dời lễ hội toàn quốc về một ô đất của mình

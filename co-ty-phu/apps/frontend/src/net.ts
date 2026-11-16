@@ -123,8 +123,10 @@ export interface KetNoi {
   xay(o?: number): void;
   /** Bán bớt một bậc công trình, hoặc thế chấp ô nếu đã hết nhà. */
   ban(o: number): void;
-  /** Chọn một ô cho thẻ cơ hội đang chờ. */
+  /** Chọn một ô cho việc đang chờ. */
   chon(o: number): void;
+  /** Bước hai của thẻ tặng ô: chọn người nhận. */
+  chonNguoi(sid: string): void;
   roi(): void;
 }
 
@@ -154,6 +156,8 @@ function doiSangAnhChup(state: any): AnhChup {
     tienCanGom: state.tienCanGom ?? 0,
     kieuChon: state.kieuChon ?? "",
     oChonDuoc: state.oChonDuoc ? String(state.oChonDuoc).split(",").map(Number) : [],
+    nguoiChonDuoc: state.nguoiChonDuoc ? String(state.nguoiChonDuoc).split(",") : [],
+    oDangTang: state.oDangTang ?? -1,
     nguoiThang: state.nguoiThang,
     lyDoThang: state.lyDoThang ?? "",
     nhaConLai: state.nhaConLai,
@@ -164,6 +168,7 @@ function doiSangAnhChup(state: any): AnhChup {
     nguoiChoi,
     o: [...state.o].map((t: any) => ({
       chu: t.chu, nha: t.nha, theChap: t.theChap, matDien: t.matDien ?? 0,
+      leHoi: Boolean(t.leHoi), leHoiToanQuoc: Boolean(t.leHoiToanQuoc),
     })),
     nhatKy: [...state.nhatKy].map((d: any) => ({ noiDung: d.noiDung, loai: d.loai })),
   };
@@ -192,6 +197,7 @@ function ganPhong(room: Room, opt: TuyChonKetNoi): KetNoi {
     xay: (o) => room.send("xay" as any, o === undefined ? {} : { o }),
     ban: (o) => room.send("ban" as any, { o }),
     chon: (o) => room.send("chon" as any, { o }),
+    chonNguoi: (sid) => room.send("chon" as any, { nguoi: sid }),
     roi: () => {
       try { sessionStorage.removeItem(KHOA_PHIEN); } catch { /* bỏ qua */ }
       void room.leave();

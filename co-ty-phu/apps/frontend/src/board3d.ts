@@ -210,6 +210,38 @@ function congVom(w: number, h: number, mau: number) {
   return g;
 }
 
+/**
+ * Dây cờ lễ hội: hai cột hai bên, một sợi dây võng và mấy lá cờ tam giác.
+ * `rong` là khoảng cách hai cột, `cao` là độ cao dây, `z` là vị trí dọc ô.
+ */
+function dayCo(mau: THREE.ColorRepresentation, rong: number, cao: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  const matCot = M(0xe3e9f1, 0.7);
+  const matCo = new THREE.MeshStandardMaterial({
+    color: mau, side: THREE.DoubleSide, roughness: 0.75, emissive: mau, emissiveIntensity: 0.12,
+  });
+
+  for (const sx of [-1, 1]) {
+    g.add(khoi(new THREE.CylinderGeometry(0.028, 0.028, cao, 6), matCot, (sx * rong) / 2, cao / 2, z));
+  }
+  g.add(khoi(new THREE.BoxGeometry(rong, 0.02, 0.02), matCot, 0, cao - 0.05, z));
+
+  // Năm lá cờ tam giác treo lủng lẳng dọc dây.
+  const so = 5;
+  for (let k = 0; k < so; k++) {
+    const x = -rong / 2 + (rong / (so - 1)) * k;
+    const hinh = new THREE.Shape();
+    hinh.moveTo(-0.09, 0);
+    hinh.lineTo(0.09, 0);
+    hinh.lineTo(0, -0.22);
+    hinh.closePath();
+    const la = new THREE.Mesh(new THREE.ShapeGeometry(hinh), matCo);
+    la.position.set(x, cao - 0.07, z);
+    g.add(la);
+  }
+  return g;
+}
+
 /** Cột cờ nhỏ cắm trên ô đã có chủ nhưng chưa xây gì. */
 function cotCo(mau: THREE.Color, x: number, z: number): THREE.Group {
   const g = new THREE.Group();
@@ -845,6 +877,7 @@ export class BanCo3D {
   private oMeshes: THREE.Mesh[] = [];
   private viTri: ViTriO[] = [];
   private soHuu = new Map<number, THREE.Group>();
+  private coLeHoi = new Map<number, THREE.Group>();
   private quan = new Map<string, Quan>();
   private dice: THREE.Mesh[] = [];
   private may: THREE.Sprite[] = [];
@@ -1150,6 +1183,9 @@ export class BanCo3D {
     // sở hữu, nhà, khách sạn
     anh.o.forEach((tt, i) => this.veSoHuu(i, tt, anh));
 
+    // cờ lễ hội
+    anh.o.forEach((tt, i) => this.veLeHoi(i, tt));
+
     // quân cờ
     const conSong = new Set(anh.nguoiChoi.map((p) => p.sid));
     for (const [sid, q] of this.quan) {
@@ -1289,6 +1325,36 @@ export class BanCo3D {
     g.traverse((m) => { if (m instanceof THREE.Mesh) m.castShadow = true; });
     this.world.add(g);
     this.soHuu.set(i, g);
+  }
+
+  /**
+   * Dây cờ lễ hội treo ở mép ngoài ô, không đè lên nhà cửa vốn nằm ở mép
+   * trong. Cờ đỏ là lễ hội thường, cờ vàng là lễ hội toàn quốc; ô mang cả
+   * hai thì treo hai dây chồng lên nhau ở hai độ cao khác nhau.
+   */
+  private veLeHoi(i: number, tt: AnhChup["o"][number]) {
+    const khoa = `${tt.leHoi ? 1 : 0}${tt.leHoiToanQuoc ? 1 : 0}`;
+    const cu = this.coLeHoi.get(i);
+    if (cu && cu.userData.khoa === khoa) return;
+    if (cu) { this.world.remove(cu); this.coLeHoi.delete(i); }
+    if (khoa === "00") return;
+
+    const v = this.viTri[i];
+    const w = v.goc ? GOC : RONG;
+    const d = v.goc ? GOC : SAU;
+
+    const g = new THREE.Group();
+    g.position.set(v.x, DAY, v.z);
+    g.rotation.y = v.ry;
+    g.userData.khoa = khoa;
+
+    const z = -d / 2 + 0.3;
+    if (tt.leHoi) g.add(dayCo(0xe0484f, w - 0.5, 0.62, z));
+    if (tt.leHoiToanQuoc) g.add(dayCo(0xf4c230, w - 0.5, 1.02, z));
+
+    g.traverse((m) => { if (m instanceof THREE.Mesh) m.castShadow = true; });
+    this.world.add(g);
+    this.coLeHoi.set(i, g);
   }
 
   /* ------------------------------------------------------------ sự kiện */

@@ -46,6 +46,10 @@ export const TrangThaiO = schema({
   theChap: t.boolean().default(false),
   /** Số lần tung xúc xắc còn lại mà ô này mất điện, 0 là bình thường. */
   matDien: t.uint8().default(0),
+  /** Cờ lễ hội thường, server giăng ngẫu nhiên đầu trận và không ai dời được. */
+  leHoi: t.boolean().default(false),
+  /** Cờ lễ hội toàn quốc, cả bàn chỉ có đúng một ô mang cờ này. */
+  leHoiToanQuoc: t.boolean().default(false),
 });
 export type TrangThaiO = SchemaType<typeof TrangThaiO>;
 
@@ -91,6 +95,10 @@ export const GameState = schema({
   kieuChon: t.string().default(""),
   /** Danh sách ô được phép chọn, số thứ tự ngăn cách bằng dấu phẩy. */
   oChonDuoc: t.string().default(""),
+  /** Danh sách người được phép chọn ở bước tặng ô, sessionId cách nhau dấu phẩy. */
+  nguoiChonDuoc: t.string().default(""),
+  /** Ô đang chờ tặng ở bước hai của thẻ tặng ô; -1 nghĩa là không có. */
+  oDangTang: t.int8().default(-1),
 
   nhatKy: t.array(DongNhatKy),
   nguoiThang: t.string().default(""),

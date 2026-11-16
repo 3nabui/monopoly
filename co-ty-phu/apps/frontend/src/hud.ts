@@ -1,8 +1,9 @@
 import {
   BAC_KHACH_SAN, BAN_CO, DON_VI, MAU_NGUOI_CHOI, NHOM, SO_BIEN, SO_NHOM_THANG,
   THU_TU_NHOM,
-  bangThue, bangThueBien, coTheBan, dinhDang, giaMua, giaMuaDut, giaTheChap,
-  giaXay, mauCuaO, oMuaDutDuoc, tenLoaiO,
+  HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC,
+  bangThue, bangThueBien, coTheBan, dinhDang, giaMua, giaMuaDut, giaMuaThucTe,
+  giaTheChap, giaXay, heSoLeHoi, mauCuaO, oMuaDutDuoc, tenLeHoi, tenLoaiO,
 } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
 
@@ -21,8 +22,10 @@ export interface HudCallbacks {
   onXay(o?: number): void;
   /** Bán bớt một bậc công trình ở ô, hoặc thế chấp ô nếu đã hết nhà. */
   onBan(o: number): void;
-  /** Chọn một ô cho thẻ cơ hội đang chờ. */
+  /** Chọn một ô cho việc đang chờ. */
   onChon(o: number): void;
+  /** Bước hai của thẻ tặng ô: chọn người nhận. */
+  onChonNguoi(sid: string): void;
   onDoiMau(): void;
   onChoiLai(): void;
   onPhongTo(): void;
@@ -343,10 +346,11 @@ export class Hud {
     const rent = $("apRent");
     if (!gom && !chon && o?.loai === "dat") {
       const b = bangThue(o.gia!);
+      const he = tt ? heSoLeHoi(tt) : 1;
       rent.hidden = false;
       rent.innerHTML = [
         ["Mua đất", b[0]], ["Trọn bộ", b[0] * 2], ["3 nhà", b[3]], ["Khách sạn", b[4]],
-      ].map(([t, v]) => `<div><em>${t}</em><b>${v}K</b></div>`).join("");
+      ].map(([t, v]) => `<div><em>${t}</em><b>${(v as number) * he}K</b></div>`).join("");
     } else {
       rent.hidden = true;
     }
@@ -356,8 +360,11 @@ export class Hud {
     const price = $("apPrice");
     if (gom) {
       price.innerHTML = `<b>${dinhDang(anh.tienCanGom)}</b><span>Cần gom</span>`;
-    } else if (anh.hanhDong.includes("mua") && o) {
-      price.innerHTML = `<b>${o.gia}K</b><span>Giá mua</span>`;
+    } else if (anh.hanhDong.includes("mua") && o && tt) {
+      const he = heSoLeHoi(tt);
+      price.innerHTML = he > 1
+        ? `<b>${dinhDang(giaMuaThucTe(o, tt))}</b><span>Giá mua ×${he} vì lễ hội</span>`
+        : `<b>${o.gia}K</b><span>Giá mua</span>`;
     } else if (anh.hanhDong.includes("muadut") && o && tt) {
       price.innerHTML = `<b>${dinhDang(giaMuaDut(o, tt))}</b><span>Giá mua đứt</span>`;
     } else if (anh.tienPhaiTra > 0) {
@@ -379,14 +386,23 @@ export class Hud {
       btns.appendChild(b);
     };
 
-    if (chon) {
+    if (chon && anh.kieuChon === "tangNguoi") {
+      // Bước hai của thẻ tặng ô: mỗi đối thủ một nút.
+      for (const sid of anh.nguoiChonDuoc) {
+        const ng = anh.nguoiChoi.find((x) => x.sid === sid);
+        if (!ng) continue;
+        them(ng.ten, "pri", () => this.cb.onChonNguoi(sid));
+      }
+    } else if (chon) {
       // Mỗi ô hợp lệ thành một nút, không cần người chơi mò trên bàn cờ.
       for (const k of anh.oChonDuoc) {
         const ox = BAN_CO[k];
         if (!ox) continue;
-        const bac = anh.o[k]?.nha ?? 0;
+        const tx = anh.o[k];
+        const bac = tx?.nha ?? 0;
         const mo = bac >= BAC_KHACH_SAN ? " · khách sạn" : bac > 0 ? ` · ${bac} nhà` : "";
-        them(`${ox.ten}${mo}`, "pri", () => this.cb.onChon(k));
+        const co = tx ? tenLeHoi(tx) : "";
+        them(`${ox.ten}${mo}${co ? " · 🎏" : ""}`, "pri", () => this.cb.onChon(k));
       }
     } else if (gom) {
       // Danh sách ô bán được của chính mình, kèm số tiền thu về mỗi lần bấm.
@@ -400,8 +416,8 @@ export class Hud {
       }
       them("Để server tự bán", "pri", () => this.cb.onHanhDong("tudong"));
     } else {
-      if (anh.hanhDong.includes("mua")) {
-        them(`MUA ${o!.gia}K`, "pri", () => this.cb.onHanhDong("mua"));
+      if (anh.hanhDong.includes("mua") && o && tt) {
+        them(`MUA ${dinhDang(giaMuaThucTe(o, tt))}`, "pri", () => this.cb.onHanhDong("mua"));
       }
       if (anh.hanhDong.includes("muadut") && o && tt) {
         them(`MUA ĐỨT ${dinhDang(giaMuaDut(o, tt))}`, "pri", () => this.cb.onHanhDong("muadut"));
@@ -420,11 +436,13 @@ export class Hud {
 
   private tenKieuChon(kieu: string): string {
     switch (kieu) {
-      case "phaBo":   return "Chọn ô để phá bỏ";
-      case "haBac":   return "Chọn ô để hạ một bậc";
-      case "matDien": return "Chọn ô để cắt điện";
-      case "tangO":   return "Chọn ô của bạn để tặng";
-      default:        return "Chọn một ô";
+      case "phaBo":         return "Chọn ô để phá bỏ";
+      case "haBac":         return "Chọn ô để hạ một bậc";
+      case "matDien":       return "Chọn ô để cắt điện";
+      case "tangO":         return "Chọn ô của bạn để tặng";
+      case "tangNguoi":     return "Tặng cho ai?";
+      case "leHoiToanQuoc": return "Chọn ô đăng cai lễ hội";
+      default:              return "Chọn một ô";
     }
   }
 
@@ -490,9 +508,13 @@ export class Hud {
       : (o.phu ?? "");
 
     const rows: [string, string][] = [];
+    const he = tt ? heSoLeHoi(tt) : 1;
+    const co = tt ? tenLeHoi(tt) : "";
+    if (co) rows.push(["Đang có", `${co} — mọi giá ×${he}`]);
+
     if (o.loai === "dat") {
-      const b = bangThue(o.gia!);
-      rows.push(["Giá mua", `${o.gia}K`]);
+      const b = bangThue(o.gia!).map((v) => v * he);
+      rows.push(["Giá mua", tt ? dinhDang(giaMuaThucTe(o, tt)) : `${o.gia}K`]);
       rows.push(["Thuê (mới cắm cờ)", `${b[0]}K`]);
       rows.push(["Trọn nhóm, chưa xây", `${b[0] * 2}K`]);
       (["1 nhà", "2 nhà", "3 nhà"] as const).forEach((t, k) => rows.push([t, `${b[k + 1]}K`]));
@@ -500,10 +522,15 @@ export class Hud {
       rows.push(["Giá xây mỗi bậc", `${Math.round(giaXay(o) / DON_VI)}K`]);
       rows.push(["Thế chấp", `${Math.round(giaTheChap(o) / DON_VI)}K`]);
     } else if (o.loai === "bien") {
-      rows.push(["Giá mua", `${o.gia}K`]);
-      bangThueBien().forEach((v, k) => rows.push([`Sở hữu ${k + 1} ô biển`, `${v}K`]));
+      rows.push(["Giá mua", tt ? dinhDang(giaMuaThucTe(o, tt)) : `${o.gia}K`]);
+      bangThueBien().forEach((v, k) => rows.push([`Sở hữu ${k + 1} ô biển`, `${v * he}K`]));
       rows.push([`Sở hữu cả ${SO_BIEN} ô biển`, "Thắng ngay"]);
       rows.push(["Mua đứt", "Không được, phải tự đi tới mà mua"]);
+    } else if (o.loai === "goc" && o.icon === "lehoi") {
+      rows.push(["Dừng ở đây", "Chọn một ô đất của bạn để đăng cai"]);
+      rows.push(["Lễ hội toàn quốc", `Mọi giá ×${HE_SO_LE_HOI_TOAN_QUOC}`]);
+      rows.push(["Lễ hội thường", `Mọi giá ×${HE_SO_LE_HOI}`]);
+      rows.push(["Một ô mang cả hai", `Mọi giá ×${HE_SO_LE_HOI * HE_SO_LE_HOI_TOAN_QUOC}`]);
     } else if (o.loai === "thue") {
       rows.push(["Phải nộp", `10% tài sản, tối đa ${o.thue}K`]);
     } else {

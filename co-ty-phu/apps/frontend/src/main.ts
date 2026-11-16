@@ -106,6 +106,7 @@ const hud = new Hud({
   onXay: (o) => mang?.xay(o),
   onBan: (o) => mang?.ban(o),
   onChon: (o) => mang?.chon(o),
+  onChonNguoi: (sid) => mang?.chonNguoi(sid),
 
   onDoiMau: () => {
     const toi = document.documentElement.dataset.theme === "dark";

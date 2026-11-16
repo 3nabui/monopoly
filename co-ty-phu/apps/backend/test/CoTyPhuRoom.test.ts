@@ -3,8 +3,9 @@ import { ColyseusTestServer, boot } from "@colyseus/testing";
 import { JWT } from "@colyseus/auth";
 import {
   BAC_KHACH_SAN, BAN_CO, O_DAO_HOANG, SO_BIEN, SO_NHOM_THANG, SO_O, TIEN_BAN_DAU,
-  bangThue, bangThueBien, coTheMuaDut, coTheXay, giaMua, giaMuaDut, giaXay,
-  thangNgay, tienThue,
+  HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC, SO_LE_HOI_THUONG,
+  bangThue, bangThueBien, coTheGiangCo, coTheMuaDut, coTheXay, giaMua,
+  giaMuaDut, giaMuaThucTe, giaXay, thangNgay, tienThue,
 } from "@co-ty-phu/shared";
 import type { TrangThaiO } from "@co-ty-phu/shared";
 import appConfig from "../src/app.config.js";
@@ -252,6 +253,7 @@ describe("Phòng cờ tỷ phú", () => {
   function banTrang(): { o: TrangThaiO[]; doc: (i: number) => TrangThaiO } {
     const o: TrangThaiO[] = BAN_CO.map(() => ({
       chu: "", nha: 0, theChap: false, matDien: 0,
+      leHoi: false, leHoiToanQuoc: false,
     }));
     return { o, doc: (i: number) => o[i] };
   }
@@ -300,6 +302,83 @@ describe("Phòng cờ tỷ phú", () => {
     // Có hai nhà: gấp đôi cả giá mua lẫn tiền đã xây.
     tt[o.i].nha = 2;
     assert.strictEqual(giaMuaDut(o, tt[o.i]), (giaMua(o) + 2 * giaXay(o)) * 2);
+  });
+
+  it("cờ lễ hội làm tiền thuê và giá mua đắt lên theo đúng hệ số", () => {
+    const o = timO("Hoàn Kiếm");
+    const { o: tt, doc } = banTrang();
+    tt[o.i].chu = "A";
+    const thueGoc = tienThue(doc, o.i, "B");
+    const giaGoc = giaMuaThucTe(o, tt[o.i]);
+    assert.ok(thueGoc > 0);
+    assert.strictEqual(giaGoc, giaMua(o), "chưa có cờ thì đúng giá niêm yết");
+
+    tt[o.i].leHoi = true;
+    assert.strictEqual(tienThue(doc, o.i, "B"), thueGoc * HE_SO_LE_HOI);
+    assert.strictEqual(giaMuaThucTe(o, tt[o.i]), giaGoc * HE_SO_LE_HOI);
+
+    tt[o.i].leHoi = false;
+    tt[o.i].leHoiToanQuoc = true;
+    assert.strictEqual(tienThue(doc, o.i, "B"), thueGoc * HE_SO_LE_HOI_TOAN_QUOC);
+
+    // Một ô mang cả hai cờ thì hai hệ số nhân với nhau.
+    tt[o.i].leHoi = true;
+    const ca2 = HE_SO_LE_HOI * HE_SO_LE_HOI_TOAN_QUOC;
+    assert.strictEqual(tienThue(doc, o.i, "B"), thueGoc * ca2);
+    assert.strictEqual(giaMuaThucTe(o, tt[o.i]), giaGoc * ca2);
+    assert.strictEqual(
+      giaMuaDut(o, tt[o.i]), giaGoc * ca2 * 2,
+      "giá mua đứt tính trên giá đã nhân cờ lễ hội",
+    );
+  });
+
+  it("cờ lễ hội thường không bao giờ rơi vào ô góc, cơ hội hay thuế", () => {
+    const hopLe = BAN_CO.filter(coTheGiangCo);
+    assert.ok(hopLe.length >= SO_LE_HOI_THUONG);
+    for (const o of hopLe) {
+      assert.ok(
+        o.loai === "dat" || o.loai === "bien",
+        `${o.ten} không được phép giăng cờ lễ hội`,
+      );
+    }
+    for (const o of BAN_CO) {
+      if (o.loai === "goc" || o.loai === "cohoi" || o.loai === "thue") {
+        assert.ok(!coTheGiangCo(o), `${o.ten} phải bị loại khỏi danh sách giăng cờ`);
+      }
+    }
+  });
+
+  it("mở ván thì giăng đúng số cờ lễ hội thường, không có lễ hội toàn quốc", async () => {
+    const { room } = await vanHaiNguoi();
+    const co = [...room.state.o].filter((t: any) => t.leHoi);
+    assert.strictEqual(co.length, SO_LE_HOI_THUONG);
+    for (let i = 0; i < SO_O; i++) {
+      if (!room.state.o[i].leHoi) continue;
+      assert.ok(coTheGiangCo(BAN_CO[i]), `${BAN_CO[i].ten} không được giăng cờ`);
+    }
+    assert.strictEqual(
+      [...room.state.o].filter((t: any) => t.leHoiToanQuoc).length, 0,
+      "đầu ván chưa ai đăng cai lễ hội toàn quốc",
+    );
+  });
+
+  it("lễ hội toàn quốc chỉ nằm ở đúng một ô, dời đi thì chỗ cũ hạ cờ", async () => {
+    const { room, a } = await vanHaiNguoi();
+    const phong: any = room;
+    const sid = a.sessionId;
+    const nhom = BAN_CO.filter((x) => x.nhom === "hagiang");
+    for (const x of nhom) room.state.o[x.i].chu = sid;
+
+    phong.apDungChon(sid, "leHoiToanQuoc", nhom[0].i);
+    assert.strictEqual(room.state.o[nhom[0].i].leHoiToanQuoc, true);
+
+    phong.apDungChon(sid, "leHoiToanQuoc", nhom[1].i);
+    assert.strictEqual(room.state.o[nhom[0].i].leHoiToanQuoc, false, "chỗ cũ phải hạ cờ");
+    assert.strictEqual(room.state.o[nhom[1].i].leHoiToanQuoc, true);
+    assert.strictEqual(
+      [...room.state.o].filter((t: any) => t.leHoiToanQuoc).length, 1,
+      "cả bàn chỉ được có một lễ hội toàn quốc",
+    );
   });
 
   it("ô biển và ô khách sạn không ai mua đứt được", () => {

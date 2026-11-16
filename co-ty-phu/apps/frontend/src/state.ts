@@ -33,6 +33,10 @@ export interface OVM {
   theChap: boolean;
   /** Số lần tung còn lại mà ô mất điện, 0 là bình thường. */
   matDien: number;
+  /** Cờ lễ hội thường, giăng ngẫu nhiên đầu trận và cố định suốt ván. */
+  leHoi: boolean;
+  /** Cờ lễ hội toàn quốc, cả bàn chỉ có đúng một ô. */
+  leHoiToanQuoc: boolean;
 }
 
 export interface DongNhatKyVM {
@@ -56,6 +60,10 @@ export interface AnhChup {
   kieuChon: string;
   /** Những ô được phép chọn trong giai đoạn "chon". */
   oChonDuoc: number[];
+  /** Những người được phép chọn ở bước tặng ô. */
+  nguoiChonDuoc: string[];
+  /** Ô đang chờ tặng ở bước hai của thẻ tặng ô; -1 nghĩa là không có. */
+  oDangTang: number;
   nguoiThang: string;
   /** "bien" | "nhom" | "conlai" — vì sao người đó thắng. */
   lyDoThang: string;
@@ -73,7 +81,7 @@ export function anhChupRong(): AnhChup {
   return {
     giaiDoan: "cho", luotCua: "", hanLuot: 0, xx1: 0, xx2: 0,
     oChoQuyet: -1, tienPhaiTra: 0, hanhDong: [], thongBao: "",
-    tienCanGom: 0, kieuChon: "", oChonDuoc: [],
+    tienCanGom: 0, kieuChon: "", oChonDuoc: [], nguoiChonDuoc: [], oDangTang: -1,
     nguoiThang: "", lyDoThang: "", nhaConLai: 32, khachSanConLai: 12,
     tenPhong: "", coMatKhau: false, chuPhong: "",
     nguoiChoi: [], o: [], nhatKy: [],

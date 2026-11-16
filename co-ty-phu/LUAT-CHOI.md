@@ -53,7 +53,7 @@ Bốn ô góc nằm ở vị trí 0, 8, 16, 24; mỗi cạnh có 7 ô thường 
 | 13 | Thiên Mụ | Thừa Thiên Huế | 180K |
 | 14 | Biển Đà Nẵng | ô biển | 200K |
 | 15 | Đại Nội | Thừa Thiên Huế | 200K |
-| 16 | LỄ HỘI TOÀN QUỐC | góc | — |
+| 16 | LỄ HỘI TOÀN QUỐC | góc | Chọn ô đăng cai |
 | 17 | Mỹ Sơn | Quảng Nam | 220K |
 | 18 | Biển Nha Trang | ô biển | 200K |
 | 19 | Hội An | Quảng Nam | 240K |
@@ -181,6 +181,38 @@ thắng ván — nhưng nó không còn là điều kiện để xây nữa.
 Mức thứ tư không bao giờ thu được: gom đủ cả bốn ô biển là thắng ngay, ván
 dừng tại đó.
 
+## Lễ hội
+
+Hai loại cờ lễ hội, đều làm ô đắt lên. Ô mang cờ nào thì **tiền thuê, giá mua
+và giá mua đứt** của ô đó nhân lên theo hệ số.
+
+| Loại cờ | Hệ số | Ai đặt |
+| --- | --- | --- |
+| Lễ hội thường | ×2 | Server giăng ngẫu nhiên 2 ô lúc mở ván, cố định suốt trận |
+| Lễ hội toàn quốc | ×3 | Người chơi, khi dừng ở ô góc Lễ hội toàn quốc |
+| Một ô mang cả hai | ×6 | |
+
+**Lễ hội thường.** Mở ván, server chọn ngẫu nhiên 2 ô để giăng cờ. Chỉ chọn
+trong ô đất và ô biển — ô góc, ô Cơ hội và ô Đóng thuế không có giá nên không
+giăng. Hai ô này không ai dời được, là hai điểm nóng cố định mà cả bàn nhìn
+thấy ngay từ đầu.
+
+**Lễ hội toàn quốc.** Cả bàn chỉ có **đúng một ô** mang cờ này. Dừng ở ô góc
+16 thì được chọn một ô đất của mình để đăng cai — cờ ở chỗ cũ hạ xuống, kể cả
+khi chỗ cũ là đất của người khác. Ai không sở hữu ô đất nào thì lượt đó không
+có gì xảy ra.
+
+Cờ lễ hội toàn quốc **gắn với ô chứ không gắn với người**. Ô đổi chủ vì bị
+mua đứt hay được tặng thì cờ vẫn ở đó, chủ mới hưởng. Chỉ khi ô thành **vô
+chủ** — bị thẻ Giải toả mặt bằng phá, hoặc chủ phá sản — thì cờ mới hạ.
+
+Giá xây và giá thế chấp **không** chịu hệ số lễ hội. Lễ hội toàn quốc dời đi
+dời lại suốt ván, nếu nó kéo theo cả hai khoản đó thì mỗi lần dời là một lần
+xáo trộn sổ sách của mọi người.
+
+Ba con số nằm ở `SO_LE_HOI_THUONG`, `HE_SO_LE_HOI` và `HE_SO_LE_HOI_TOAN_QUOC`
+trong `rules.ts`.
+
 ## Mua đứt ô của người khác
 
 Dừng vào ô đã có chủ thì **tiền thuê bị trừ ngay, không có nút từ chối**. Sau
@@ -189,6 +221,9 @@ khi trả xong, người chơi được chọn **mua đứt** ô đó hoặc **b
 Chỉ **ô đất** mới mua đứt được.
 
 **Giá mua đứt = 2 × (giá mua ô + tổng tiền đã xây trên ô).**
+
+Giá mua ô ở đây là giá đã nhân hệ số lễ hội, nên ô đang có lễ hội thì mua đứt
+đắt hơn hẳn.
 
 Toàn bộ số tiền đó trả thẳng cho chủ cũ, nhà băng không lấy đồng nào. Nhà cửa
 trên ô đổi chủ theo, không bị phá.
@@ -295,9 +330,9 @@ Ba điểm cần anh/chị biết vì tôi phải tự quyết:
   đất" nên tôi hiểu theo nghĩa hẹp. Ô biển vì vậy hoàn toàn bất khả xâm
   phạm: không thẻ nào đánh được, cũng không mua đứt được. Ai đi tới trước
   thì giữ được, và gom đủ bốn ô là thắng.
-- **"Tặng cho người khác" hiện là tặng cho người ngồi kế tiếp** theo thứ tự
-  đi. Bàn 2 người thì không có gì để bàn; bàn 3–4 người, muốn người rút được
-  tự chọn tặng ai thì phải thêm một bước chọn nữa.
+- **Thẻ tặng ô có hai bước:** chọn ô của mình, rồi chọn tặng cho ai. Bàn chỉ
+  còn một đối thủ thì bỏ qua bước hai. Hết 25 giây ở bước hai thì tặng người
+  ngồi kế tiếp.
 - **Mất điện đếm theo lượt tung của cả bàn**, không phải lượt riêng của chủ ô.
   5 lượt tung với bàn 2 người là khoảng 2 vòng rưỡi.
 
