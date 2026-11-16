@@ -1,4 +1,6 @@
-import { Room, Client, CloseCode, Delayed } from "colyseus";
+import { Room, Client, CloseCode, Delayed, type AuthContext } from "colyseus";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { nguoiDungTuToken, type NguoiDung } from "../config/auth.js";
 import {
   BAN_CO, DON_VI, LUONG, LUOT_KET_DAO, O_DAO_HOANG, O_XUAT_PHAT, SO_O,
   TIEN_BAN_DAU, TIEN_RA_DAO, coTheMua, coTheXay, dinhDang,
@@ -18,6 +20,19 @@ const GIAY_GIU_GHE = 60;
 /** Số dòng nhật ký giữ lại trong state. */
 const SO_DONG_NHAT_KY = 14;
 
+/** Lý do bị từ chối vào phòng. Client đọc mã này để hiện đúng thông báo. */
+export const LOI = {
+  SAI_MAT_KHAU: "SAI_MAT_KHAU",
+  DA_BAT_DAU: "DA_BAT_DAU",
+  DAY_PHONG: "DAY_PHONG",
+  CHUA_DANG_NHAP: "CHUA_DANG_NHAP",
+} as const;
+
+export interface TuyChonVaoPhong {
+  tenPhong?: string;
+  matKhau?: string;
+}
+
 export class CoTyPhuRoom extends Room<{ state: GameState }> {
   maxClients = 4;
   state = new GameState();
@@ -26,6 +41,10 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
   private boCoHoi: The[] = [];
   private boKhiVan: The[] = [];
 
+  /** Mật khẩu phòng giữ ở dạng băm trong bộ nhớ phòng, không bao giờ vào state. */
+  private muoi = "";
+  private bam = "";
+
   /** Bộ đọc trạng thái ô để dùng lại các hàm luật trong package shared. */
   private get doc(): DocO {
     return (i: number) => this.state.o[i];
@@ -33,22 +52,86 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
   // ---------------------------------------------------------------- vòng đời
 
-  onCreate() {
+  onCreate(options: TuyChonVaoPhong = {}) {
     for (let i = 0; i < SO_O; i++) this.state.o.push(new OSchema());
     this.boCoHoi = tron([...BO_CO_HOI]);
     this.boKhiVan = tron([...BO_KHI_VAN]);
+
+    this.state.tenPhong =
+      String(options.tenPhong ?? "").trim().slice(0, 24) || `Phòng ${this.roomId}`;
+
+    const mk = String(options.matKhau ?? "");
+    if (mk) {
+      this.muoi = randomBytes(16).toString("hex");
+      this.bam = scryptSync(mk, this.muoi, 32).toString("hex");
+      this.state.coMatKhau = true;
+    }
+
+    this.capNhatMoTa();
     this.ghi("Phòng đã mở. Cần ít nhất 2 người và tất cả bấm Sẵn sàng.", "he-thong");
   }
 
-  onJoin(client: Client, options: { ten?: string } = {}) {
+  /**
+   * Chạy trước onJoin. Đây là nơi chặn người lạ: sai mật khẩu, ván đã bắt đầu,
+   * hoặc chưa đăng nhập thì ném lỗi và client không vào được phòng.
+   *
+   * Giá trị trả về nằm ở client.auth cho onJoin dùng.
+   */
+  async onAuth(_client: Client, options: TuyChonVaoPhong = {}, context: AuthContext) {
+    const nd = await nguoiDungTuToken(context.token);
+    if (!nd) throw new Error(LOI.CHUA_DANG_NHAP);
+
+    if (this.bam) {
+      const thu = scryptSync(String(options.matKhau ?? ""), this.muoi, 32);
+      const dung = Buffer.from(this.bam, "hex");
+      if (thu.length !== dung.length || !timingSafeEqual(thu, dung)) {
+        throw new Error(LOI.SAI_MAT_KHAU);
+      }
+    }
+
+    if (this.state.giaiDoan !== "cho") throw new Error(LOI.DA_BAT_DAU);
+    if (this.state.nguoiChoi.size >= this.maxClients) throw new Error(LOI.DAY_PHONG);
+
+    return nd;
+  }
+
+  onJoin(client: Client) {
+    const nd = client.auth as NguoiDung;
     const p = new NguoiChoi();
-    p.ten = (options.ten || "").trim().slice(0, 16) || `Người ${this.state.nguoiChoi.size + 1}`;
-    p.mau = this.state.nguoiChoi.size;
-    p.thuTu = this.state.nguoiChoi.size;
+    p.uid = nd.id;
+    p.ten = nd.ten;
+    p.anh = nd.anh ?? "";
+    p.mau = this.mauConTrong();
+    p.thuTu = this.mauConTrong();
     p.tien = TIEN_BAN_DAU;
     p.viTri = O_XUAT_PHAT;
     this.state.nguoiChoi.set(client.sessionId, p);
+
+    if (!this.state.chuPhong) this.state.chuPhong = client.sessionId;
     this.ghi(`${p.ten} vào phòng.`, "he-thong");
+    this.capNhatMoTa();
+  }
+
+  /**
+   * Thông tin phòng hiện ở sảnh. Mật khẩu không bao giờ lọt vào đây, chỉ có
+   * cờ cho biết phòng có khoá hay không.
+   */
+  private capNhatMoTa() {
+    this.setMetadata({
+      ten: this.state.tenPhong,
+      coMatKhau: this.state.coMatKhau,
+      soNguoi: this.state.nguoiChoi.size,
+      toiDa: this.maxClients,
+      trangThai: this.state.giaiDoan,
+      chu: this.state.nguoiChoi.get(this.state.chuPhong)?.ten ?? "",
+    });
+  }
+
+  /** Chỉ số màu nhỏ nhất chưa ai dùng, để người vào sau không trùng màu. */
+  private mauConTrong(): number {
+    const daDung = new Set([...this.state.nguoiChoi.values()].map((p) => p.mau));
+    for (let i = 0; i < this.maxClients; i++) if (!daDung.has(i)) return i;
+    return this.state.nguoiChoi.size;
   }
 
   onLeave(client: Client, code: CloseCode) {
@@ -58,11 +141,17 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
     if (this.state.giaiDoan === "cho") {
       this.state.nguoiChoi.delete(client.sessionId);
+      // Chủ phòng rời thì trao quyền cho người còn lại, không thì phòng kẹt.
+      if (this.state.chuPhong === client.sessionId) {
+        this.state.chuPhong = [...this.state.nguoiChoi.keys()][0] ?? "";
+      }
+      this.capNhatMoTa();
       return;
     }
     // Ván đang chạy: coi như phá sản để tài sản quay lại thị trường.
     this.choPhaSan(client.sessionId);
     if (this.state.luotCua === client.sessionId) this.sangLuotKe();
+    this.capNhatMoTa();
   }
 
   onDrop(client: Client) {
@@ -214,6 +303,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
   private batDauVan() {
     this.lock();
     this.state.giaiDoan = "tung";
+    this.capNhatMoTa();
     this.ghi("Ván bắt đầu. Chúc may mắn!", "he-thong");
     this.batDauLuot(this.thuTuNguoiChoi()[0]);
   }

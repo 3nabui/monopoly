@@ -4,8 +4,15 @@ import {
 } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
 
+export type ManHinh = "dangnhap" | "sanh" | "phong";
+
 export interface HudCallbacks {
-  onVaoPhong(ten: string): void;
+  onDangNhapGoogle(): void;
+  onDangNhapKhach(ten: string): void;
+  onDangXuat(): void;
+  onTaoPhong(ten: string, matKhau: string): void;
+  onVaoPhong(roomId: string, matKhau: string): void;
+  onRoiPhong(): void;
   onSanSang(): void;
   onTung(): void;
   onHanhDong(hd: string): void;
@@ -25,6 +32,8 @@ export class Hud {
   private oDangXem = -1;
   private boDemTimer?: number;
   private khoaQuyet = "";
+  private phongDangHoi = "";
+  private nguoiDung: { id: string; ten: string; anh?: string } | null = null;
 
   constructor(private cb: HudCallbacks) {
     this.ganSuKien();
@@ -32,6 +41,90 @@ export class Hud {
   }
 
   datSid(sid: string) { this.sid = sid; }
+
+  /* ------------------------------------------------- đăng nhập và sảnh */
+
+  /** Hiện đúng một trong ba màn: đăng nhập, sảnh phòng, hoặc bàn chơi. */
+  datManHinh(man: ManHinh) {
+    $("manDangNhap").hidden = man !== "dangnhap";
+    $("manSanh").hidden = man !== "sanh";
+    if (man !== "phong") {
+      $("manCho").hidden = true;
+      $("manMatKhau").hidden = true;
+    }
+    ($("btnGoogle") as HTMLButtonElement).disabled = false;
+    ($("btnTaoPhong") as HTMLButtonElement).disabled = false;
+  }
+
+  /** Bật nút Google và lối vào thử theo những gì server cho phép. */
+  datCauHinh(c: { google: boolean; khach: boolean }) {
+    ($("btnGoogle") as HTMLButtonElement).disabled = !c.google;
+    $("formKhach").hidden = !c.khach;
+    const ghi = $("ghiChuDangNhap");
+    ghi.hidden = c.google;
+    if (!c.google) {
+      ghi.textContent = c.khach
+        ? "Máy chủ chưa cấu hình OAUTH_CLIENT_ID và OAUTH_CLIENT_SECRET nên nút Google đang tắt. Dùng lối vào thử bên dưới trong lúc chờ."
+        : "Máy chủ chưa cấu hình đăng nhập Google. Liên hệ người quản trị.";
+    }
+  }
+
+  datNguoiDung(nd: { id: string; ten: string; anh?: string } | null) {
+    this.nguoiDung = nd;
+    const el = $("hoSo");
+    if (!nd) { el.innerHTML = ""; return; }
+    const av = nd.anh
+      ? `<img src="${this.thoat(nd.anh)}" alt="" referrerpolicy="no-referrer" />`
+      : `<span class="av">${this.thoat(nd.ten.charAt(0).toUpperCase())}</span>`;
+    el.innerHTML = `${av}<span>${this.thoat(nd.ten)}</span>`;
+  }
+
+  veDanhSachPhong(ds: {
+    roomId: string; ten: string; coMatKhau: boolean;
+    soNguoi: number; toiDa: number; trangThai: string; chu: string;
+  }[]) {
+    const wrap = $("danhSachPhong");
+    $("sanhSub").textContent = ds.length
+      ? `Đang có ${ds.length} phòng. Vào một phòng hoặc tạo phòng mới.`
+      : "Chưa có phòng nào. Tạo một phòng để bắt đầu.";
+
+    wrap.innerHTML = ds.map((p) => {
+      const dangChoi = p.trangThai !== "cho";
+      const day = p.soNguoi >= p.toiDa;
+      const chan = dangChoi || day;
+      const lyDo = dangChoi ? "Đang chơi" : day ? "Đã đầy" : "Vào";
+      return `<div class="room">
+        <div class="info">
+          <div class="nm">${p.coMatKhau ? '<span class="khoa" title="Có mật khẩu">🔒</span>' : ""}<span>${this.thoat(p.ten)}</span></div>
+          <div class="meta">${p.chu ? `Chủ phòng: ${this.thoat(p.chu)}` : "Phòng trống"}${dangChoi ? " · đang chơi" : ""}</div>
+        </div>
+        <div class="cnt">${p.soNguoi}/${p.toiDa}</div>
+        <button type="button" data-room="${p.roomId}" data-khoa="${p.coMatKhau ? 1 : 0}"
+          data-ten="${this.thoat(p.ten)}" ${chan ? "disabled" : ""}>${lyDo}</button>
+      </div>`;
+    }).join("");
+
+    Array.prototype.forEach.call(wrap.querySelectorAll("button[data-room]"), (b: HTMLButtonElement) => {
+      b.addEventListener("click", () => {
+        const id = b.dataset.room!;
+        if (b.dataset.khoa === "1") {
+          this.phongDangHoi = id;
+          $("mkSub").textContent = `Phòng "${b.dataset.ten}" cần mật khẩu để vào.`;
+          ($("inpMatKhauVao") as HTMLInputElement).value = "";
+          $("manMatKhau").hidden = false;
+          ($("inpMatKhauVao") as HTMLInputElement).focus();
+        } else {
+          this.cb.onVaoPhong(id, "");
+        }
+      });
+    });
+  }
+
+  /** Mở lại nút tạo phòng sau khi một lần thử thất bại. */
+  moKhoaSanh() {
+    ($("btnTaoPhong") as HTMLButtonElement).disabled = false;
+    ($("btnGoogle") as HTMLButtonElement).disabled = false;
+  }
 
   /** Bật tắt nút phóng to và lời nhắc kéo, theo mức zoom hiện tại. */
   capNhatZoom(z: number) {
@@ -43,12 +136,37 @@ export class Hud {
   // ------------------------------------------------------------ sự kiện
 
   private ganSuKien() {
-    $("formVao").addEventListener("submit", (e) => {
-      e.preventDefault();
-      const ten = ($("inpTen") as HTMLInputElement).value.trim();
-      ($("btnVao") as HTMLButtonElement).disabled = true;
-      this.cb.onVaoPhong(ten || "Người chơi");
+    $("btnGoogle").addEventListener("click", () => {
+      ($("btnGoogle") as HTMLButtonElement).disabled = true;
+      this.cb.onDangNhapGoogle();
     });
+    $("formKhach").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const ten = ($("inpTenKhach") as HTMLInputElement).value.trim();
+      this.cb.onDangNhapKhach(ten || "Khách");
+    });
+    $("btnDangXuat").addEventListener("click", () => this.cb.onDangXuat());
+    $("btnRoiPhong").addEventListener("click", () => this.cb.onRoiPhong());
+
+    $("formTaoPhong").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const ten = ($("inpTenPhong") as HTMLInputElement).value.trim();
+      const mk = ($("inpMatKhauPhong") as HTMLInputElement).value;
+      ($("btnTaoPhong") as HTMLButtonElement).disabled = true;
+      this.cb.onTaoPhong(ten, mk);
+    });
+
+    $("formMatKhau").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const mk = ($("inpMatKhauVao") as HTMLInputElement).value;
+      $("manMatKhau").hidden = true;
+      if (this.phongDangHoi) this.cb.onVaoPhong(this.phongDangHoi, mk);
+    });
+    $("btnHuyMatKhau").addEventListener("click", () => {
+      $("manMatKhau").hidden = true;
+      this.phongDangHoi = "";
+    });
+
     $("btnSanSang").addEventListener("click", () => this.cb.onSanSang());
     $("btnZoomIn").addEventListener("click", () => this.cb.onPhongTo());
     $("btnZoomOut").addEventListener("click", () => this.cb.onThuNho());
@@ -96,7 +214,7 @@ export class Hud {
     const dau = this.anh === null;
     this.anh = anh;
 
-    this.veSanh(anh);
+    this.veCho(anh);
     this.veNguoiChoi(anh, dau);
     this.vePanel(anh);
     this.veNhatKy(anh);
@@ -114,25 +232,24 @@ export class Hud {
         : anh.thongBao || "Bấm vào một ô để xem giá";
   }
 
-  private veSanh(anh: AnhChup) {
-    const sanh = $("sanh");
-    if (anh.giaiDoan !== "cho") { sanh.hidden = true; return; }
-    if (!this.sid) return;        // chưa vào phòng thì giữ màn nhập tên
-    sanh.hidden = false;
-    $("vaoPhong").hidden = true;
-    $("choPhong").hidden = false;
+  /** Phòng chờ bên trong một phòng cụ thể, trước khi ván bắt đầu. */
+  private veCho(anh: AnhChup) {
+    const man = $("manCho");
+    if (anh.giaiDoan !== "cho" || !this.sid) { man.hidden = true; return; }
+    man.hidden = false;
 
+    $("choTen").textContent = anh.tenPhong || "Phòng chờ";
     $("seats").innerHTML = anh.nguoiChoi.map((p) => `
       <div class="seat">
         <span class="dot" style="background:${MAU_NGUOI_CHOI[p.mau % 4]}"></span>
-        <span>${this.thoat(p.ten)}${p.sid === this.sid ? " (bạn)" : ""}</span>
+        <span>${this.thoat(p.ten)}${p.sid === this.sid ? " (bạn)" : ""}${p.sid === anh.chuPhong ? " · chủ phòng" : ""}</span>
         <span class="st ${p.sanSang ? "ok" : ""}">${p.sanSang ? "Sẵn sàng" : "Đang chờ"}</span>
       </div>`).join("");
 
     const toi = anh.nguoiChoi.find((p) => p.sid === this.sid);
     $("btnSanSang").textContent = toi?.sanSang ? "Huỷ sẵn sàng" : "Sẵn sàng";
     $("choSub").textContent = anh.nguoiChoi.length < 2
-      ? "Cần ít nhất 2 người. Mở thêm một tab nữa để thử."
+      ? `Cần ít nhất 2 người, đang có ${anh.nguoiChoi.length}. Rủ thêm người vào phòng này.`
       : "Tất cả bấm Sẵn sàng là ván bắt đầu.";
   }
 
@@ -366,12 +483,15 @@ export class Hud {
     window.setTimeout(() => { el.hidden = true; }, 2600);
   }
 
-  matKetNoi() {
-    $("sanh").hidden = false;
-    $("vaoPhong").hidden = false;
-    $("choPhong").hidden = true;
-    ($("btnVao") as HTMLButtonElement).disabled = false;
-    $("vaoSub").textContent = "Mất kết nối với máy chủ. Thử vào lại.";
+  /** Rời phòng hoặc mất kết nối: quay về sảnh, giữ nguyên trạng thái đăng nhập. */
+  veSanh() {
+    this.sid = "";
+    this.anh = null;
+    this.tienCu.clear();
+    $("manCho").hidden = true;
+    $("actpanel").hidden = true;
+    $("players").innerHTML = "";
+    this.datManHinh(this.nguoiDung ? "sanh" : "dangnhap");
   }
 
   get oDangChon() { return this.oDangXem; }

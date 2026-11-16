@@ -23,7 +23,11 @@ npm run dev:web
 ```
 
 Rồi mở <http://localhost:5180> ở **hai tab** — cần ít nhất hai người để bắt đầu.
-Nhập tên, bấm **Sẵn sàng** ở cả hai tab là ván chạy.
+Đăng nhập, một tab tạo phòng, tab kia vào phòng đó, rồi cả hai bấm **Sẵn sàng**.
+
+Chưa cấu hình Google thì nút đăng nhập Google bị tắt và màn đăng nhập hiện
+thêm lối **Vào thử với tên tạm** để chạy ở máy mình. Lối này tự tắt khi
+`NODE_ENV=production` hoặc khi đã có khoá Google.
 
 | Địa chỉ | Dùng để làm gì |
 | --- | --- |
@@ -34,6 +38,49 @@ Nhập tên, bấm **Sẵn sàng** ở cả hai tab là ván chạy.
 | <http://localhost:2567/playground> | Công cụ gửi tin nhắn thử vào phòng |
 
 Hai địa chỉ cuối chỉ bật khi `NODE_ENV` khác `production`.
+
+## Đăng nhập bằng Google
+
+1. Vào [Google Cloud Console](https://console.cloud.google.com/apis/credentials),
+   tạo một **OAuth client ID** loại **Web application**.
+2. Ở mục **Authorized redirect URIs**, thêm đúng địa chỉ này:
+
+   ```
+   http://localhost:2567/auth/provider/google/callback
+   ```
+
+   Khi lên môi trường thật thì thêm địa chỉ tương ứng của máy chủ, ví dụ
+   `https://game.example.com/auth/provider/google/callback`.
+3. Chép Client ID và Client secret vào `apps/backend/.env.development`:
+
+   ```
+   OAUTH_CLIENT_ID=...
+   OAUTH_CLIENT_SECRET=...
+   ```
+4. Khởi động lại server. Nút Google tự bật, lối vào thử tự tắt.
+
+File `.env.development` còn có `JWT_SECRET` và `SESSION_SECRET` sinh sẵn cho
+máy mình. **Môi trường thật phải thay bằng giá trị khác** và giữ ngoài kho mã.
+
+### Luồng đăng nhập chạy thế nào
+
+Trình duyệt gọi `client.auth.signInWithProvider("google")`, cửa sổ phụ mở trang
+Google, Google gọi ngược về `/auth/provider/google/callback` trên server, server
+dựng hồ sơ người chơi rồi ký thành JWT trả về. Mỗi lần vào phòng, SDK đính kèm
+JWT đó và `Room.onAuth` xác minh lại.
+
+Tên hiển thị **lấy từ tài khoản đăng nhập**, không lấy từ dữ liệu client gửi
+lên — có test riêng cho việc này.
+
+## Phòng chơi
+
+- Sảnh dùng `LobbyRoom` của Colyseus nên danh sách phòng cập nhật ngay khi có
+  người tạo, vào hoặc rời phòng; không phải bấm tải lại.
+- Phòng có thể đặt mật khẩu. Mật khẩu được băm bằng scrypt và chỉ nằm trong bộ
+  nhớ của phòng — **không vào state, không vào thông tin hiển thị ở sảnh**, nên
+  client không có đường nào đọc được. Có test kiểm tra điều này.
+- Tối thiểu 2 người, tối đa 4. Ván bắt đầu khi tất cả bấm Sẵn sàng.
+- Ván đã bắt đầu thì phòng bị khoá, người mới không vào được nữa.
 
 ## Cấu trúc
 

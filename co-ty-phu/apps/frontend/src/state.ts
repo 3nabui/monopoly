@@ -7,6 +7,10 @@
 
 export interface NguoiChoiVM {
   sid: string;
+  /** Mã tài khoản, bền qua các lần vào lại phòng. */
+  uid: string;
+  /** Ảnh đại diện Google, chuỗi rỗng nếu không có. */
+  anh: string;
   ten: string;
   mau: number;
   tien: number;
@@ -42,6 +46,9 @@ export interface AnhChup {
   nguoiThang: string;
   nhaConLai: number;
   khachSanConLai: number;
+  tenPhong: string;
+  coMatKhau: boolean;
+  chuPhong: string;
   nguoiChoi: NguoiChoiVM[];
   o: OVM[];
   nhatKy: DongNhatKyVM[];
@@ -52,6 +59,7 @@ export function anhChupRong(): AnhChup {
     giaiDoan: "cho", luotCua: "", hanLuot: 0, xx1: 0, xx2: 0,
     oChoQuyet: -1, tienPhaiTra: 0, hanhDong: [], thongBao: "",
     nguoiThang: "", nhaConLai: 32, khachSanConLai: 12,
+    tenPhong: "", coMatKhau: false, chuPhong: "",
     nguoiChoi: [], o: [], nhatKy: [],
   };
 }

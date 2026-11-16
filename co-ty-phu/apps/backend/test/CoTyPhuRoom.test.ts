@@ -1,5 +1,6 @@
 import assert from "assert";
 import { ColyseusTestServer, boot } from "@colyseus/testing";
+import { JWT } from "@colyseus/auth";
 import { BAN_CO, TIEN_BAN_DAU, bangThue, giaMua, tienThue } from "@co-ty-phu/shared";
 import appConfig from "../src/app.config.js";
 import type { GameState } from "../src/rooms/schema/GameState.js";
@@ -10,6 +11,17 @@ describe("Phòng cờ tỷ phú", () => {
   before(async () => { colyseus = await boot(appConfig); });
   after(async () => { await colyseus.shutdown(); });
   beforeEach(async () => { await colyseus.cleanup(); });
+
+  /**
+   * Phòng yêu cầu đăng nhập, nên mỗi client thử nghiệm cần một JWT riêng.
+   * Đặt token ngay trước khi nối để hai client mang hai danh tính khác nhau.
+   */
+  async function noi(room: any, ten: string, options: any = {}) {
+    colyseus.sdk.auth.token = await JWT.sign({ id: `test:${ten}`, ten });
+    return colyseus.connectTo(room, options);
+  }
+
+  /* ---------------------------------------------------- dữ liệu bàn cờ */
 
   it("bàn cờ có đúng 36 ô với 16 ô đất, 4 ô biển, 2 tiện ích", () => {
     assert.strictEqual(BAN_CO.length, 36);
@@ -39,21 +51,88 @@ describe("Phòng cờ tỷ phú", () => {
     }
   });
 
-  it("người mới vào có đủ tiền ban đầu và đứng ở ô Xuất phát", async () => {
+  /* ------------------------------------------------- đăng nhập và phòng */
+
+  it("không có token thì không vào được phòng", async () => {
     const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
-    const client = await colyseus.connectTo(room, { ten: "Hùng" });
-    const p = room.state.nguoiChoi.get(client.sessionId)!;
+    colyseus.sdk.auth.token = "";
+    await assert.rejects(
+      () => colyseus.connectTo(room, {}),
+      /CHUA_DANG_NHAP/,
+      "khách chưa đăng nhập phải bị từ chối",
+    );
+  });
+
+  it("phòng có mật khẩu chỉ cho vào khi nhập đúng", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {
+      tenPhong: "Phòng kín", matKhau: "vietnam",
+    });
+    assert.strictEqual(room.state.coMatKhau, true);
+
+    // Chủ phòng vào trước, nếu không phòng rỗng sẽ tự đóng sau lần từ chối đầu.
+    const chu = await noi(room, "A", { matKhau: "vietnam" });
+    assert.ok(chu.sessionId, "nhập đúng mật khẩu thì phải vào được");
+
+    await assert.rejects(() => noi(room, "B", { matKhau: "sai" }), /SAI_MAT_KHAU/);
+    await assert.rejects(() => noi(room, "B", {}), /SAI_MAT_KHAU/);
+    assert.strictEqual(room.state.nguoiChoi.size, 1, "người sai mật khẩu không được tính vào phòng");
+  });
+
+  it("thông tin phòng ở sảnh không lộ mật khẩu", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {
+      tenPhong: "Phòng kín", matKhau: "vietnam",
+    });
+    await noi(room, "A", { matKhau: "vietnam" });
+    await room.waitForNextPatch();
+
+    const mota = JSON.stringify(room.metadata ?? {});
+    assert.ok(mota.includes("Phòng kín"), "phải có tên phòng");
+    assert.ok(mota.includes("coMatKhau"), "phải có cờ báo phòng khoá");
+    assert.ok(!mota.includes("vietnam"), "không được lộ mật khẩu");
+
+    const state = JSON.stringify(room.state.toJSON());
+    assert.ok(!state.includes("vietnam"), "state gửi cho client cũng không được lộ mật khẩu");
+  });
+
+  it("ván đã bắt đầu thì người thứ ba không vào được", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
+    a.send("sanSang"); b.send("sanSang");
+    await room.waitForNextPatch();
+    assert.strictEqual(room.state.giaiDoan, "tung");
+
+    // Ván bắt đầu thì phòng bị khoá ở tầng ghép trận, nên lời từ chối đến
+    // trước cả onAuth. Chấp nhận cả hai thông điệp.
+    await assert.rejects(() => noi(room, "C"), /locked|DA_BAT_DAU/);
+    assert.strictEqual(room.state.nguoiChoi.size, 2);
+  });
+
+  it("người chơi lấy tên từ tài khoản đăng nhập, không phải từ client gửi lên", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const a = await noi(room, "Hùng", { ten: "KẺ GIẢ MẠO" });
+    const p = room.state.nguoiChoi.get(a.sessionId)!;
     assert.strictEqual(p.ten, "Hùng");
+    assert.strictEqual(p.uid, "test:Hùng");
     assert.strictEqual(p.tien, TIEN_BAN_DAU);
     assert.strictEqual(p.viTri, 0);
-    assert.strictEqual(room.state.giaiDoan, "cho");
-    assert.strictEqual(room.state.o.length, 36);
   });
+
+  it("hai người vào cùng phòng thì không trùng màu", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
+    const ma = room.state.nguoiChoi.get(a.sessionId)!.mau;
+    const mb = room.state.nguoiChoi.get(b.sessionId)!.mau;
+    assert.notStrictEqual(ma, mb);
+  });
+
+  /* ------------------------------------------------------- luồng ván chơi */
 
   it("ván chỉ bắt đầu khi đủ 2 người và tất cả sẵn sàng", async () => {
     const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
-    const a = await colyseus.connectTo(room, { ten: "A" });
-    const b = await colyseus.connectTo(room, { ten: "B" });
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
 
     a.send("sanSang");
     await room.waitForNextPatch();
@@ -67,8 +146,8 @@ describe("Phòng cờ tỷ phú", () => {
 
   it("không phải lượt mình thì tung xúc xắc bị bỏ qua", async () => {
     const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
-    const a = await colyseus.connectTo(room, { ten: "A" });
-    const b = await colyseus.connectTo(room, { ten: "B" });
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
     a.send("sanSang"); b.send("sanSang");
     await room.waitForNextPatch();
 
@@ -87,8 +166,8 @@ describe("Phòng cờ tỷ phú", () => {
 
   it("tung xúc xắc thì quân di chuyển và mở quyết định", async () => {
     const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
-    const a = await colyseus.connectTo(room, { ten: "A" });
-    const b = await colyseus.connectTo(room, { ten: "B" });
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
     a.send("sanSang"); b.send("sanSang");
     await room.waitForNextPatch();
 
@@ -103,12 +182,11 @@ describe("Phòng cờ tỷ phú", () => {
 
   it("mua đất thì trừ đúng tiền và ghi nhận chủ sở hữu", async () => {
     const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
-    const a = await colyseus.connectTo(room, { ten: "A" });
-    const b = await colyseus.connectTo(room, { ten: "B" });
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
     a.send("sanSang"); b.send("sanSang");
     await room.waitForNextPatch();
 
-    // Tung cho tới khi dừng ở một ô mua được còn trống.
     let dangDi = room.state.luotCua === a.sessionId ? a : b;
     let vong = 0;
     while (!room.state.hanhDong.split(",").includes("mua") && vong++ < 40) {
@@ -131,6 +209,8 @@ describe("Phòng cờ tỷ phú", () => {
     assert.strictEqual(room.state.nguoiChoi.get(sid)!.tien, truoc - gia);
   });
 
+  /* ----------------------------------------------------- công thức luật */
+
   it("tiền thuê đất lẻ bằng mức cơ bản, trọn nhóm thì nhân đôi", () => {
     const o = BAN_CO.find((x) => x.ten === "Đồng Văn")!;
     const khac = BAN_CO.find((x) => x.ten === "Mèo Vạc")!;
@@ -145,10 +225,8 @@ describe("Phòng cờ tỷ phú", () => {
     trangThai[khac.i].chu = "A";
     assert.strictEqual(tienThue(doc, o.i, "B", 7), coBan * 2 * 1000);
 
-    // Chủ đứng trên đất của chính mình thì không phải trả gì.
     assert.strictEqual(tienThue(doc, o.i, "A", 7), 0);
 
-    // Đang thế chấp thì không thu được tiền thuê.
     trangThai[o.i].theChap = true;
     assert.strictEqual(tienThue(doc, o.i, "B", 7), 0);
   });

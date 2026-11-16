@@ -7,7 +7,11 @@ import { SO_NHA_TOI_DA, SO_KHACH_SAN_TOI_DA } from "@co-ty-phu/shared";
  */
 
 export const NguoiChoi = schema({
+  /** Mã người dùng lấy từ tài khoản đăng nhập, bền qua các lần vào lại. */
+  uid: t.string().default(""),
   ten: t.string().default(""),
+  /** Ảnh đại diện từ Google, rỗng nếu không có. */
+  anh: t.string().default(""),
   /** Chỉ số màu quân cờ, 0..3. */
   mau: t.uint8().default(0),
   tien: t.number().default(0),
@@ -70,5 +74,11 @@ export const GameState = schema({
 
   nhaConLai: t.uint8().default(SO_NHA_TOI_DA),
   khachSanConLai: t.uint8().default(SO_KHACH_SAN_TOI_DA),
+
+  /** Tên phòng do người tạo đặt, hiện ở sảnh và trên đầu màn chơi. */
+  tenPhong: t.string().default(""),
+  coMatKhau: t.boolean().default(false),
+  /** sessionId của người tạo phòng. */
+  chuPhong: t.string().default(""),
 });
 export type GameState = SchemaType<typeof GameState>;
