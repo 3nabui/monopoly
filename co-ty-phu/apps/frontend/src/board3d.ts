@@ -1037,7 +1037,7 @@ export class BanCo3D {
       }
       q.nhom.visible = !p.phaSan;
       const dich = q.duongDi.length ? q.duongDi[q.duongDi.length - 1] : q.oHienTai;
-      if (dich !== p.viTri) this.lenDuongDi(q, dich, p.viTri);
+      if (dich !== p.viTri) this.lenDuongDi(q, dich, p.viTri, p.buocCuoi);
     }
 
     // xúc xắc
@@ -1073,14 +1073,30 @@ export class BanCo3D {
     return 0;
   }
 
-  private lenDuongDi(q: Quan, tu: number, den: number) {
-    const tien = (den - tu + SO_O) % SO_O;
+  /**
+   * Dựng đường đi cho quân cờ.
+   *
+   * Hướng lấy từ `buocCuoi` mà server gửi xuống, không tự đoán bằng đường
+   * ngắn nhất. Đoán đường ngắn nhất là sai: thẻ "đi thẳng về ô Xuất phát" từ
+   * ô 14 là đi tới 22 ô và được nhận lương, nhưng đường ngắn nhất lại là lùi
+   * 14 ô — quân sẽ chạy ngược trong khi nhật ký báo đã qua Xuất phát.
+   *
+   * `buocCuoi` bằng 0 nghĩa là bị dời thẳng (vào Đảo Hoang): nhảy một nhịp
+   * sang thẳng ô đích thay vì bước qua từng ô.
+   */
+  private lenDuongDi(q: Quan, tu: number, den: number, buocCuoi: number) {
     const buoc: number[] = [];
-    if (tien <= 18) {
-      for (let k = 1; k <= tien; k++) buoc.push((tu + k) % SO_O);
+
+    if (buocCuoi === 0) {
+      buoc.push(den);
     } else {
-      for (let k = 1; k <= SO_O - tien; k++) buoc.push((tu - k + SO_O) % SO_O);
+      const huong = buocCuoi > 0 ? 1 : -1;
+      const soBuoc = Math.min(Math.abs(buocCuoi), SO_O);
+      for (let k = 1; k <= soBuoc; k++) buoc.push(((tu + huong * k) % SO_O + SO_O) % SO_O);
+      // Lệch so với vị trí server chốt (mất gói, vào lại phòng) thì chốt lại.
+      if (buoc[buoc.length - 1] !== den) buoc.push(den);
     }
+
     q.duongDi = buoc;
     q.t = 0;
   }

@@ -1,7 +1,7 @@
 import assert from "assert";
 import { ColyseusTestServer, boot } from "@colyseus/testing";
 import { JWT } from "@colyseus/auth";
-import { BAN_CO, TIEN_BAN_DAU, bangThue, giaMua, tienThue } from "@co-ty-phu/shared";
+import { BAN_CO, SO_O, TIEN_BAN_DAU, bangThue, giaMua, tienThue } from "@co-ty-phu/shared";
 import appConfig from "../src/app.config.js";
 import type { GameState } from "../src/rooms/schema/GameState.js";
 
@@ -242,5 +242,93 @@ describe("Phòng cờ tỷ phú", () => {
 
     trangThai[nuoc.i].chu = "A";
     assert.strictEqual(tienThue(doc, dien.i, "B", 8), 8 * 10 * 1000);
+  });
+
+  /* ------------------------------------------------- hướng di chuyển */
+
+  /**
+   * `buocCuoi` là số ô của nước đi vừa rồi, có dấu. Client dựa vào nó để chạy
+   * hoạt ảnh, nên dấu phải khớp với điều luật chơi thực sự làm. Trước đây
+   * client tự đoán bằng đường ngắn nhất: thẻ "đi thẳng về ô Xuất phát" từ ô 14
+   * là đi tới 22 ô và được nhận lương, nhưng đường ngắn nhất là lùi 14 ô nên
+   * quân chạy ngược trong khi nhật ký báo đã qua Xuất phát.
+   */
+  async function vanHaiNguoi() {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
+    a.send("sanSang"); b.send("sanSang");
+    await room.waitForNextPatch();
+    return { room, a, b };
+  }
+
+  it("đi bằng xúc xắc thì buocCuoi bằng tổng điểm và luôn dương", async () => {
+    const { room, a, b } = await vanHaiNguoi();
+    const dangDi = room.state.luotCua === a.sessionId ? a : b;
+    const sid = room.state.luotCua;
+
+    dangDi.send("tungXucXac");
+    await room.waitForNextPatch();
+
+    const p = room.state.nguoiChoi.get(sid)!;
+    const tong = room.state.xx1 + room.state.xx2;
+    // Thẻ bài hoặc ba lần đôi có thể dời quân tiếp; chỉ kiểm khi chưa bị dời.
+    if (!p.oDao && p.buocCuoi === tong) {
+      assert.ok(p.buocCuoi > 0, "đi bằng xúc xắc luôn là đi tới");
+    }
+  });
+
+  it("mọi nước đi đều khớp giữa vị trí mới và số bước báo ra", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const a = await noi(room, "A");
+    const p = room.state.nguoiChoi.get(a.sessionId)!;
+    const phong: any = room;
+
+    // Gọi thẳng từng cách dời quân, không qua mạng, để kết quả tất định.
+    for (const batDau of [0, 7, 13, 20, 30, 35]) {
+      for (const soO of [1, 2, 7, 12]) {
+        p.viTri = batDau;
+        phong.diChuyen(p, soO);
+        const mong = (batDau + soO) % SO_O;
+        assert.strictEqual(p.viTri, mong, `đi ${soO} ô từ ${batDau}`);
+        assert.strictEqual(p.buocCuoi, soO, `số bước báo ra khi đi ${soO} ô từ ${batDau}`);
+      }
+
+      for (const dich of [0, 9, 21, 22]) {
+        p.viTri = batDau;
+        phong.nhayToi(p, dich);
+        assert.strictEqual(p.viTri, dich);
+        assert.ok(p.buocCuoi >= 0, "đi thẳng tới một ô không bao giờ là lùi");
+        assert.strictEqual(
+          ((batDau + p.buocCuoi) % SO_O + SO_O) % SO_O, dich,
+          `từ ${batDau} đi ${p.buocCuoi} bước phải tới ${dich}`,
+        );
+      }
+    }
+  });
+
+  it("thẻ đi thẳng tới một ô được tính là đi tới, không phải lùi", async () => {
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", {});
+    const a = await noi(room, "A");
+    const b = await noi(room, "B");
+    a.send("sanSang"); b.send("sanSang");
+    await room.waitForNextPatch();
+
+    const sid = room.state.luotCua;
+    const p = room.state.nguoiChoi.get(sid)!;
+    const phong: any = room;
+
+    // Đứng ở ô 14, thẻ đưa về ô Xuất phát: đi tới 22 ô chứ không phải lùi 14.
+    p.viTri = 14;
+    phong.nhayToi(p, 0);
+    assert.strictEqual(p.viTri, 0);
+    assert.strictEqual(p.buocCuoi, 22, "phải là đi tới 22 ô để khớp với tiền lương");
+    assert.ok(p.buocCuoi > 0);
+
+    // Bị đưa thẳng vào Đảo Hoang thì không bước qua ô nào.
+    phong.vaoDao(p);
+    assert.strictEqual(p.viTri, 9);
+    assert.strictEqual(p.buocCuoi, 0, "dời thẳng thì client nhảy một nhịp, không đi bộ");
+    void b;
   });
 });

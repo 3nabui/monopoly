@@ -15,6 +15,8 @@ export interface NguoiChoiVM {
   mau: number;
   tien: number;
   viTri: number;
+  /** Số ô của nước đi vừa rồi, có dấu. 0 nghĩa là bị dời thẳng. */
+  buocCuoi: number;
   thuTu: number;
   sanSang: boolean;
   oDao: boolean;

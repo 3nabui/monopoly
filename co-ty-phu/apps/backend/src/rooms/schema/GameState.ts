@@ -17,6 +17,12 @@ export const NguoiChoi = schema({
   tien: t.number().default(0),
   /** Vị trí trên bàn cờ, 0..35. */
   viTri: t.uint8().default(0),
+  /**
+   * Số ô của nước đi vừa rồi, có dấu: dương là đi tới, âm là lùi lại,
+   * 0 nghĩa là bị dời thẳng (vào Đảo Hoang) chứ không bước qua từng ô.
+   * Client dựa vào đây để chạy hoạt ảnh đúng hướng.
+   */
+  buocCuoi: t.int8().default(0),
   /** Thứ tự ngồi, quyết định thứ tự đi. */
   thuTu: t.uint8().default(0),
   sanSang: t.boolean().default(false),

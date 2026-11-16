@@ -400,6 +400,8 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     p.viTri = O_DAO_HOANG;
     p.oDao = true;
     p.luotODao = 0;
+    // Bị đưa thẳng vào đảo, không bước qua ô nào nên cũng không nhận lương.
+    p.buocCuoi = 0;
     this.state.soLanDoi = 0;
   }
 
@@ -413,8 +415,14 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       this.ghi(`${p.ten} đi qua Xuất phát, nhận ${dinhDang(LUONG)}.`, "tien");
     }
     p.viTri = moi;
+    p.buocCuoi = soO;
   }
 
+  /**
+   * Thẻ "đi thẳng tới ô X". Đây là đi tới chứ không phải lùi: người chơi vòng
+   * theo chiều thường và nhận lương nếu qua ô Xuất phát, nên số bước báo cho
+   * client cũng phải là số bước đi tới.
+   */
   private nhayToi(p: NguoiChoi, oDich: number, nhanLuong = true) {
     const cu = p.viTri;
     if (nhanLuong && oDich <= cu) {
@@ -422,6 +430,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       this.ghi(`${p.ten} đi qua Xuất phát, nhận ${dinhDang(LUONG)}.`, "tien");
     }
     p.viTri = oDich;
+    p.buocCuoi = (oDich - cu + SO_O) % SO_O;
   }
 
   // ----------------------------------------------------- xử lý ô vừa dừng
@@ -774,6 +783,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
       case "luiLai":
         p.viTri = (p.viTri - hu.so + SO_O) % SO_O;
+        p.buocCuoi = -hu.so;
         break;
 
       case "suaNha": {

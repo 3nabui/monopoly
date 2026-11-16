@@ -129,7 +129,7 @@ function doiSangAnhChup(state: any): AnhChup {
     nguoiChoi.push({
       sid,
       uid: p.uid, anh: p.anh,
-      ten: p.ten, mau: p.mau, tien: p.tien, viTri: p.viTri, thuTu: p.thuTu,
+      ten: p.ten, mau: p.mau, tien: p.tien, viTri: p.viTri, buocCuoi: p.buocCuoi ?? 0, thuTu: p.thuTu,
       sanSang: p.sanSang, oDao: p.oDao, phaSan: p.phaSan, ketNoi: p.ketNoi,
     });
   });
