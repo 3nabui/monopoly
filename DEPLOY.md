@@ -1,5 +1,25 @@
 # Đưa game lên mạng
 
+## Hiện trạng
+
+| Thứ | Địa chỉ | Tình trạng |
+| --- | --- | --- |
+| Backend | `https://co-ty-phu-be.onrender.com` | Đang chạy, đã nối database |
+| Database | `co-ty-phu-db` trên Render | Bảng đã dựng tự động |
+| Frontend | Vercel | Cần đặt `VITE_SERVER` |
+| Đăng nhập Google | — | **Chưa cấu hình, chưa ai vào chơi được** |
+
+`co-ty-phu-be` là tên **service**. `monoapi` trên dashboard là tên
+**blueprint** — đó không phải tên miền, gõ `monoapi.onrender.com` sẽ ra
+`Not Found` vì chẳng có gì chạy ở đó.
+
+Kiểm nhanh backend còn sống:
+
+```bash
+curl https://co-ty-phu-be.onrender.com/health
+```
+
+
 Hai nửa deploy riêng nhau:
 
 | Phần | Là gì | Deploy ở đâu |
