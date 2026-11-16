@@ -1,6 +1,8 @@
+import type { KieuChon } from "./types.js";
+
 /**
- * BỘ THẺ CƠ HỘI VÀ KHÍ VẬN
- * ========================
+ * BỘ THẺ CƠ HỘI
+ * =============
  *
  * Đây là chỗ duy nhất cần sửa khi muốn thêm, bớt hoặc đổi nội dung thẻ.
  * Sửa xong chạy lại `npm run dev:server` là có hiệu lực, không phải đụng
@@ -13,8 +15,8 @@
  * Số tiền ghi theo đơn vị K giống giá in trên bàn cờ. 150 nghĩa là 150K,
  * tức 150.000 trong game.
  *
- * Hai bộ được trộn riêng khi mở phòng. Rút xong thẻ xuống đáy bộ, nên cả
- * bộ quay vòng đều chứ không lặp ngẫu nhiên.
+ * Bộ thẻ được trộn khi mở phòng. Rút xong thẻ xuống đáy bộ, nên cả bộ quay
+ * vòng đều chứ không lặp ngẫu nhiên.
  */
 
 /** Các kiểu hiệu ứng mà một thẻ có thể mang. */
@@ -38,7 +40,13 @@ export type HieuUngThe =
   /** Lùi lại `so` ô. Đây là cách duy nhất khiến quân đi ngược. */
   | { loai: "luiLai"; so: number }
   /** Nộp tiền sửa chữa theo số nhà và khách sạn đang có. */
-  | { loai: "suaNha"; moiNha: number; moiKhachSan: number };
+  | { loai: "suaNha"; moiNha: number; moiKhachSan: number }
+  /**
+   * Thẻ bắt người rút chọn một ô trên bàn cờ. Server tính sẵn danh sách ô
+   * hợp lệ và client chỉ cho bấm vào những ô đó. Hết giờ thì server chọn
+   * thay. Bốn kiểu chọn xem KieuChon trong types.ts.
+   */
+  | { loai: "chon"; kieu: KieuChon };
 
 export interface The {
   noiDung: string;
@@ -46,35 +54,38 @@ export interface The {
 }
 
 /**
- * Thẻ CƠ HỘI — nghiêng về di chuyển và vận may.
- * Ô số 7, 13, 20, 24, 34 trên bàn cờ.
+ * Thẻ CƠ HỘI — ô số 12, 20, 28 trên bàn cờ.
+ *
+ * Bốn thẻ cuối là thẻ tương tác: người rút phải bấm chọn một ô trên bàn.
  */
 export const BO_CO_HOI: readonly The[] = [
   { noiDung: "Trúng thầu dự án ven biển, nhận 150K.", hieuUng: { loai: "nhan", so: 150 } },
+  { noiDung: "Hoàn thuế cuối năm, nhận 200K.", hieuUng: { loai: "nhan", so: 200 } },
+  { noiDung: "Khách du lịch đông bất ngờ, nhận 100K.", hieuUng: { loai: "nhan", so: 100 } },
   { noiDung: "Đi thẳng về ô Xuất phát và nhận lương.", hieuUng: { loai: "diToi", o: 0 } },
+  { noiDung: "Đi thẳng tới Biển Nha Trang.", hieuUng: { loai: "diToi", o: 18 } },
   { noiDung: "Lạc đường trên đèo, lùi lại 3 ô.", hieuUng: { loai: "luiLai", so: 3 } },
   { noiDung: "Vi phạm quy hoạch, vào Đảo Hoang.", hieuUng: { loai: "vaoDao" } },
-  { noiDung: "Khách du lịch đông bất ngờ, nhận 100K.", hieuUng: { loai: "nhan", so: 100 } },
   { noiDung: "Chi phí quảng bá du lịch, nộp 80K.", hieuUng: { loai: "nop", so: 80 } },
-  { noiDung: "Bạn thắng cuộc thi khởi nghiệp, mỗi người trả bạn 50K.", hieuUng: { loai: "thuMoiNguoi", so: 50 } },
-  { noiDung: "Đi thẳng tới Biển Nha Trang.", hieuUng: { loai: "diToi", o: 22 } },
-  { noiDung: "Bảo trì toàn bộ bất động sản: 25K mỗi nhà, 100K mỗi khách sạn.", hieuUng: { loai: "suaNha", moiNha: 25, moiKhachSan: 100 } },
-  { noiDung: "Cổ tức quỹ đầu tư, nhận 50K.", hieuUng: { loai: "nhan", so: 50 } },
-];
-
-/**
- * Thẻ KHÍ VẬN — nghiêng về tiền bạc.
- * Ô số 2, 16, 29 trên bàn cờ.
- */
-export const BO_KHI_VAN: readonly The[] = [
-  { noiDung: "Hoàn thuế cuối năm, nhận 200K.", hieuUng: { loai: "nhan", so: 200 } },
-  { noiDung: "Viện phí sau chuyến leo núi, nộp 100K.", hieuUng: { loai: "nop", so: 100 } },
-  { noiDung: "Mừng khai trương, mỗi người trả bạn 30K.", hieuUng: { loai: "thuMoiNguoi", so: 30 } },
-  { noiDung: "Khao cả bàn một chầu, trả mỗi người 40K.", hieuUng: { loai: "traMoiNguoi", so: 40 } },
-  { noiDung: "Bán lô đất cũ, nhận 120K.", hieuUng: { loai: "nhan", so: 120 } },
   { noiDung: "Phạt xây dựng sai phép, nộp 150K.", hieuUng: { loai: "nop", so: 150 } },
-  { noiDung: "Đi thẳng tới Hội An.", hieuUng: { loai: "diToi", o: 21 } },
-  { noiDung: "Trốn thuế bị phát hiện, vào Đảo Hoang.", hieuUng: { loai: "vaoDao" } },
-  { noiDung: "Tiền thưởng cuối quý, nhận 80K.", hieuUng: { loai: "nhan", so: 80 } },
-  { noiDung: "Sửa chữa sau bão: 20K mỗi nhà, 75K mỗi khách sạn.", hieuUng: { loai: "suaNha", moiNha: 20, moiKhachSan: 75 } },
+  { noiDung: "Bạn thắng cuộc thi khởi nghiệp, mỗi người trả bạn 50K.", hieuUng: { loai: "thuMoiNguoi", so: 50 } },
+  { noiDung: "Khao cả bàn một chầu, trả mỗi người 40K.", hieuUng: { loai: "traMoiNguoi", so: 40 } },
+  { noiDung: "Bảo trì toàn bộ bất động sản: 25K mỗi nhà, 100K mỗi khách sạn.", hieuUng: { loai: "suaNha", moiNha: 25, moiKhachSan: 100 } },
+
+  {
+    noiDung: "Giải toả mặt bằng: chọn một ô của người khác để phá bỏ, ô đó thành vô chủ. Ô đã có khách sạn thì không được.",
+    hieuUng: { loai: "chon", kieu: "phaBo" },
+  },
+  {
+    noiDung: "Thanh tra xây dựng: chọn một ô của người khác để hạ một bậc công trình. Ô đã có khách sạn thì không được.",
+    hieuUng: { loai: "chon", kieu: "haBac" },
+  },
+  {
+    noiDung: "Sự cố lưới điện: chọn một ô của người khác, ô đó mất điện 5 lượt tung, ai dừng ở đó cũng không phải trả tiền.",
+    hieuUng: { loai: "chon", kieu: "matDien" },
+  },
+  {
+    noiDung: "Làm từ thiện: chọn một ô của bạn để tặng người chơi kế tiếp.",
+    hieuUng: { loai: "chon", kieu: "tangO" },
+  },
 ];

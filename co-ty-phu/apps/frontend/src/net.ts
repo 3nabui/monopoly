@@ -37,7 +37,8 @@ export interface PhongTomTat {
   chu: string;
 }
 
-export type HanhDongGui = "sanSang" | "tungXucXac" | "mua" | "boqua" | "tra" | "tieptuc";
+export type HanhDongGui =
+  | "sanSang" | "tungXucXac" | "mua" | "muadut" | "boqua" | "tudong" | "tieptuc";
 
 /* ------------------------------------------------------------- đăng nhập */
 
@@ -120,6 +121,10 @@ export interface KetNoi {
   sid: string;
   gui(hanhDong: HanhDongGui): void;
   xay(o?: number): void;
+  /** Bán bớt một bậc công trình, hoặc thế chấp ô nếu đã hết nhà. */
+  ban(o: number): void;
+  /** Chọn một ô cho thẻ cơ hội đang chờ. */
+  chon(o: number): void;
   roi(): void;
 }
 
@@ -129,7 +134,8 @@ function doiSangAnhChup(state: any): AnhChup {
     nguoiChoi.push({
       sid,
       uid: p.uid, anh: p.anh,
-      ten: p.ten, mau: p.mau, tien: p.tien, viTri: p.viTri, buocCuoi: p.buocCuoi ?? 0, thuTu: p.thuTu,
+      ten: p.ten, mau: p.mau, tien: p.tien, viTri: p.viTri, buocCuoi: p.buocCuoi ?? 0,
+      soVong: p.soVong ?? 1, thuTu: p.thuTu,
       sanSang: p.sanSang, oDao: p.oDao, phaSan: p.phaSan, ketNoi: p.ketNoi,
     });
   });
@@ -145,14 +151,20 @@ function doiSangAnhChup(state: any): AnhChup {
     tienPhaiTra: state.tienPhaiTra,
     hanhDong: state.hanhDong ? String(state.hanhDong).split(",") : [],
     thongBao: state.thongBao,
+    tienCanGom: state.tienCanGom ?? 0,
+    kieuChon: state.kieuChon ?? "",
+    oChonDuoc: state.oChonDuoc ? String(state.oChonDuoc).split(",").map(Number) : [],
     nguoiThang: state.nguoiThang,
+    lyDoThang: state.lyDoThang ?? "",
     nhaConLai: state.nhaConLai,
     khachSanConLai: state.khachSanConLai,
     tenPhong: state.tenPhong ?? "",
     coMatKhau: Boolean(state.coMatKhau),
     chuPhong: state.chuPhong ?? "",
     nguoiChoi,
-    o: [...state.o].map((t: any) => ({ chu: t.chu, nha: t.nha, theChap: t.theChap })),
+    o: [...state.o].map((t: any) => ({
+      chu: t.chu, nha: t.nha, theChap: t.theChap, matDien: t.matDien ?? 0,
+    })),
     nhatKy: [...state.nhatKy].map((d: any) => ({ noiDung: d.noiDung, loai: d.loai })),
   };
 }
@@ -178,6 +190,8 @@ function ganPhong(room: Room, opt: TuyChonKetNoi): KetNoi {
     sid: room.sessionId,
     gui: (hanhDong) => room.send(hanhDong as any),
     xay: (o) => room.send("xay" as any, o === undefined ? {} : { o }),
+    ban: (o) => room.send("ban" as any, { o }),
+    chon: (o) => room.send("chon" as any, { o }),
     roi: () => {
       try { sessionStorage.removeItem(KHOA_PHIEN); } catch { /* bỏ qua */ }
       void room.leave();

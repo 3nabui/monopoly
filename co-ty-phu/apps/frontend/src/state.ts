@@ -17,6 +17,8 @@ export interface NguoiChoiVM {
   viTri: number;
   /** Số ô của nước đi vừa rồi, có dấu. 0 nghĩa là bị dời thẳng. */
   buocCuoi: number;
+  /** Đang đi vòng thứ mấy, bắt đầu từ 1. Vòng 1 bị hạn chế xây nhà. */
+  soVong: number;
   thuTu: number;
   sanSang: boolean;
   oDao: boolean;
@@ -26,8 +28,11 @@ export interface NguoiChoiVM {
 
 export interface OVM {
   chu: string;
+  /** Bậc công trình: 0 là mới cắm cờ, 1..3 là số nhà, 4 là khách sạn. */
   nha: number;
   theChap: boolean;
+  /** Số lần tung còn lại mà ô mất điện, 0 là bình thường. */
+  matDien: number;
 }
 
 export interface DongNhatKyVM {
@@ -45,7 +50,15 @@ export interface AnhChup {
   tienPhaiTra: number;
   hanhDong: string[];
   thongBao: string;
+  /** Giai đoạn "gom": số tiền mặt còn thiếu. */
+  tienCanGom: number;
+  /** Giai đoạn "chon": kiểu chọn mà thẻ cơ hội yêu cầu. */
+  kieuChon: string;
+  /** Những ô được phép chọn trong giai đoạn "chon". */
+  oChonDuoc: number[];
   nguoiThang: string;
+  /** "bien" | "nhom" | "conlai" — vì sao người đó thắng. */
+  lyDoThang: string;
   nhaConLai: number;
   khachSanConLai: number;
   tenPhong: string;
@@ -60,7 +73,8 @@ export function anhChupRong(): AnhChup {
   return {
     giaiDoan: "cho", luotCua: "", hanLuot: 0, xx1: 0, xx2: 0,
     oChoQuyet: -1, tienPhaiTra: 0, hanhDong: [], thongBao: "",
-    nguoiThang: "", nhaConLai: 32, khachSanConLai: 12,
+    tienCanGom: 0, kieuChon: "", oChonDuoc: [],
+    nguoiThang: "", lyDoThang: "", nhaConLai: 32, khachSanConLai: 12,
     tenPhong: "", coMatKhau: false, chuPhong: "",
     nguoiChoi: [], o: [], nhatKy: [],
   };

@@ -15,7 +15,7 @@ export const NguoiChoi = schema({
   /** Chỉ số màu quân cờ, 0..3. */
   mau: t.uint8().default(0),
   tien: t.number().default(0),
-  /** Vị trí trên bàn cờ, 0..35. */
+  /** Vị trí trên bàn cờ, 0..31. */
   viTri: t.uint8().default(0),
   /**
    * Số ô của nước đi vừa rồi, có dấu: dương là đi tới, âm là lùi lại,
@@ -23,6 +23,11 @@ export const NguoiChoi = schema({
    * Client dựa vào đây để chạy hoạt ảnh đúng hướng.
    */
   buocCuoi: t.int8().default(0),
+  /**
+   * Đang đi vòng thứ mấy, bắt đầu từ 1 và tăng mỗi lần qua ô Xuất phát.
+   * Vòng 1 bị hạn chế xây nhà — xem coTheXay trong package shared.
+   */
+  soVong: t.uint8().default(1),
   /** Thứ tự ngồi, quyết định thứ tự đi. */
   thuTu: t.uint8().default(0),
   sanSang: t.boolean().default(false),
@@ -36,9 +41,11 @@ export type NguoiChoi = SchemaType<typeof NguoiChoi>;
 export const TrangThaiO = schema({
   /** sessionId của chủ sở hữu; chuỗi rỗng nghĩa là chưa ai mua. */
   chu: t.string().default(""),
-  /** 0..4 là số nhà, 5 nghĩa là khách sạn. */
+  /** Bậc công trình: 0 là mới cắm cờ, 1..3 là số nhà, 4 là khách sạn. */
   nha: t.uint8().default(0),
   theChap: t.boolean().default(false),
+  /** Số lần tung xúc xắc còn lại mà ô này mất điện, 0 là bình thường. */
+  matDien: t.uint8().default(0),
 });
 export type TrangThaiO = SchemaType<typeof TrangThaiO>;
 
@@ -50,7 +57,7 @@ export const DongNhatKy = schema({
 export type DongNhatKy = SchemaType<typeof DongNhatKy>;
 
 export const GameState = schema({
-  /** "cho" | "tung" | "quyet" | "ketthuc" */
+  /** "cho" | "tung" | "quyet" | "gom" | "chon" | "ketthuc" */
   giaiDoan: t.string().default("cho"),
 
   nguoiChoi: t.map(NguoiChoi),
@@ -75,8 +82,20 @@ export const GameState = schema({
   /** Câu giải thích hiện trong HUD. */
   thongBao: t.string().default(""),
 
+  /** Giai đoạn "gom": số tiền mặt còn thiếu mà người chơi phải bán để bù. */
+  tienCanGom: t.number().default(0),
+  /**
+   * Giai đoạn "chon": kiểu chọn mà thẻ cơ hội yêu cầu
+   * ("phaBo" | "tangO" | "matDien" | "haBac"), rỗng khi không chọn gì.
+   */
+  kieuChon: t.string().default(""),
+  /** Danh sách ô được phép chọn, số thứ tự ngăn cách bằng dấu phẩy. */
+  oChonDuoc: t.string().default(""),
+
   nhatKy: t.array(DongNhatKy),
   nguoiThang: t.string().default(""),
+  /** "bien" | "nhom" | "conlai" — vì sao người đó thắng. */
+  lyDoThang: t.string().default(""),
 
   nhaConLai: t.uint8().default(SO_NHA_TOI_DA),
   khachSanConLai: t.uint8().default(SO_KHACH_SAN_TOI_DA),

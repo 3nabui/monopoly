@@ -104,6 +104,8 @@ const hud = new Hud({
   onTung: () => mang?.gui("tungXucXac"),
   onHanhDong: (hd) => mang?.gui(hd as any),
   onXay: (o) => mang?.xay(o),
+  onBan: (o) => mang?.ban(o),
+  onChon: (o) => mang?.chon(o),
 
   onDoiMau: () => {
     const toi = document.documentElement.dataset.theme === "dark";
@@ -121,7 +123,15 @@ const hud = new Hud({
   onThuNho: () => ban.thuNho(),
 });
 
-ban.setOnChonO((i) => hud.moTheO(i));
+ban.setOnChonO((i) => {
+  // Đang có thẻ cơ hội chờ chọn ô và ô này hợp lệ thì bấm là chọn luôn,
+  // không mở thẻ thông tin — đó là việc người chơi đang phải làm.
+  if (anh.giaiDoan === "chon" && anh.luotCua === mang?.sid && anh.oChonDuoc.includes(i)) {
+    mang.chon(i);
+    return;
+  }
+  hud.moTheO(i);
+});
 ban.setOnZoom((z) => hud.capNhatZoom(z));
 hud.capNhatZoom(ban.mucZoom);
 

@@ -1,4 +1,4 @@
-import { BAN_CO, DON_VI, coTheMua } from "./board.js";
+import { BAN_CO, DON_VI, THU_TU_NHOM, coTheMua } from "./board.js";
 import type { MaNhom, O, TrangThaiO } from "./types.js";
 
 /**
@@ -17,13 +17,51 @@ function docTu(tiles: readonly TrangThaiO[]): DocO {
   return (i) => tiles[i];
 }
 
+/** Bậc công trình cao nhất trên một ô đất: 4 nghĩa là khách sạn. */
+export const BAC_KHACH_SAN = 4;
+
+/** Bậc cao nhất được phép xây khi người chơi còn ở vòng đầu tiên. */
+export const BAC_TOI_DA_VONG_DAU = 2;
+
+/** Số nhóm đất trọn vẹn cần có để thắng ngay. */
+export const SO_NHOM_THANG = 3;
+
+/** Số ô biển trên bàn. Sở hữu hết số này là thắng ngay. */
+export const SO_BIEN = BAN_CO.filter((o) => o.loai === "bien").length;
+
+/** Số lần tung xúc xắc mà thẻ Cơ hội làm một ô mất điện. */
+export const LUOT_MAT_DIEN = 5;
+
 /**
- * Bảng tiền thuê của một ô đất, tính bằng K:
- * [đất trống, 1 nhà, 2 nhà, 3 nhà, 4 nhà, khách sạn].
+ * Hệ số mua đứt: người mua trả gấp đôi số vốn chủ cũ đã bỏ vào ô.
+ *
+ * Để ở đây thành một con số duy nhất cho dễ cân lại. Càng cao thì mua đứt
+ * càng khó xảy ra và chủ đất càng an toàn.
  */
-export function bangThue(giaK: number): [number, number, number, number, number, number] {
+export const HE_SO_MUA_DUT = 2;
+
+/**
+ * Bảng tiền thuê của một ô đất, tính bằng K, theo bậc công trình:
+ * [mua đất, 1 nhà, 2 nhà, 3 nhà, khách sạn].
+ *
+ * Mức gốc bằng 1/10 giá mua. Ô đã trọn nhóm nhưng chưa xây thì ăn đôi mức
+ * gốc — xem tienThue.
+ */
+export function bangThue(giaK: number): [number, number, number, number, number] {
   const g = Math.round(giaK / 10);
-  return [g, g * 5, g * 15, g * 45, g * 80, g * 125];
+  return [g, g * 5, g * 15, g * 45, g * 125];
+}
+
+/**
+ * Tiền thuê ô biển theo số ô biển người đó đang giữ, tính bằng K.
+ *
+ * Mức cuối gần như không bao giờ thu được: gom đủ toàn bộ ô biển là thắng
+ * ngay, ván dừng tại đó.
+ */
+const THUE_BIEN = [25, 60, 150, 300];
+
+export function bangThueBien(): number[] {
+  return THUE_BIEN.slice(0, Math.max(1, SO_BIEN));
 }
 
 /** Giá mua ô, theo đơn vị gốc. */
@@ -31,7 +69,7 @@ export function giaMua(o: O): number {
   return (o.gia ?? 0) * DON_VI;
 }
 
-/** Giá xây mỗi căn nhà trên ô đất, theo đơn vị gốc. */
+/** Giá xây mỗi bậc nhà trên ô đất, theo đơn vị gốc. */
 export function giaXay(o: O): number {
   return Math.round((o.gia ?? 0) / 4 / 5) * 5 * DON_VI;
 }
@@ -46,53 +84,22 @@ export function giaGiaiChap(o: O): number {
   return Math.round(giaTheChap(o) * 1.1);
 }
 
-/** Một người đã sở hữu trọn nhóm màu hay chưa. */
-export function tronBo(doc: DocO, nhom: MaNhom, chu: string): boolean {
-  if (!chu) return false;
-  return BAN_CO
-    .filter((o) => o.nhom === nhom)
-    .every((o) => doc(o.i)?.chu === chu);
-}
-
-/** Đếm số ô cùng loại mà một người đang sở hữu. */
-export function demTheoLoai(doc: DocO, loai: O["loai"], chu: string): number {
-  if (!chu) return 0;
-  return BAN_CO.filter((o) => o.loai === loai && doc(o.i)?.chu === chu).length;
+/** Số nhà thường đang đứng trên ô, không tính khách sạn. */
+export function soNhaThuong(tt: TrangThaiO): number {
+  return tt.nha >= BAC_KHACH_SAN ? 0 : tt.nha;
 }
 
 /**
- * Tiền thuê phải trả khi dừng ở ô i.
+ * Giá mua đứt một ô đang có chủ.
  *
- * Trả về 0 khi ô chưa có chủ, đang thế chấp, hoặc người dừng chính là chủ.
- * `diemXucXac` chỉ dùng cho ô tiện ích.
+ * Bằng HE_SO_MUA_DUT lần số vốn chủ cũ đã bỏ ra: giá mua ô cộng tiền đã xây.
+ * Toàn bộ số này trả cho chủ cũ, nhà băng không lấy đồng nào, nên mua đứt là
+ * một vụ chuyển tiền rất lớn giữa hai người chơi — đủ để người bị mua đứt
+ * không coi đó là mất mát hoàn toàn.
  */
-export function tienThue(
-  doc: DocO,
-  i: number,
-  nguoiDung: string,
-  diemXucXac: number,
-): number {
-  const o = BAN_CO[i];
-  const tt = doc(i);
-  if (!o || !tt || !coTheMua(o)) return 0;
-  if (!tt.chu || tt.chu === nguoiDung || tt.theChap) return 0;
-
-  if (o.loai === "dat") {
-    const b = bangThue(o.gia!);
-    if (tt.nha >= 5) return b[5] * DON_VI;
-    if (tt.nha > 0) return b[tt.nha] * DON_VI;
-    // Đất trống nhưng chủ đã trọn nhóm thì tiền thuê nhân đôi.
-    return (tronBo(doc, o.nhom!, tt.chu) ? b[0] * 2 : b[0]) * DON_VI;
-  }
-
-  if (o.loai === "bien") {
-    const n = demTheoLoai(doc, "bien", tt.chu);
-    return [25, 50, 100, 200][Math.max(0, Math.min(3, n - 1))] * DON_VI;
-  }
-
-  // Tiện ích: nhân với điểm xúc xắc vừa tung.
-  const m = demTheoLoai(doc, "tienich", tt.chu);
-  return diemXucXac * (m >= 2 ? 10 : 4) * DON_VI;
+export function giaMuaDut(o: O, tt: TrangThaiO): number {
+  const von = giaMua(o) + (o.loai === "dat" ? soNhaThuong(tt) * giaXay(o) : 0);
+  return von * HE_SO_MUA_DUT;
 }
 
 export interface KetQuaKiemTra {
@@ -102,10 +109,108 @@ export interface KetQuaKiemTra {
 }
 
 /**
- * Có được xây thêm một căn nhà ở ô i hay không.
+ * Có được mua đứt ô i hay không.
  *
- * Kiểm tra đủ bốn điều kiện: là ô đất của mình, đã trọn nhóm, không ô nào
- * trong nhóm đang thế chấp, và tuân thủ luật xây đều.
+ * Mua đứt chỉ áp dụng cho ô đang có chủ khác mình, chưa lên khách sạn và
+ * không đang thế chấp. Khách sạn là bất khả xâm phạm — đó là phần thưởng cho
+ * người dám xây tới bậc cuối.
+ */
+export function coTheMuaDut(
+  doc: DocO,
+  i: number,
+  nguoiMua: string,
+  tienMat: number,
+): KetQuaKiemTra {
+  const o = BAN_CO[i];
+  const tt = doc(i);
+  if (!o || !tt || !coTheMua(o)) return { ok: false, lyDo: "Ô này không mua đứt được." };
+  if (!tt.chu) return { ok: false, lyDo: "Ô chưa có chủ, mua thường là được." };
+  if (tt.chu === nguoiMua) return { ok: false, lyDo: "Ô này đã là của bạn." };
+  if (tt.theChap) return { ok: false, lyDo: "Ô đang thế chấp, không mua đứt được." };
+  if (o.loai === "dat" && tt.nha >= BAC_KHACH_SAN) {
+    return { ok: false, lyDo: "Ô đã có khách sạn, không ai mua đứt được." };
+  }
+  const gia = giaMuaDut(o, tt);
+  if (tienMat < gia) {
+    return { ok: false, lyDo: `Mua đứt cần ${dinhDang(gia)}, bạn không đủ tiền mặt.` };
+  }
+  return { ok: true };
+}
+
+/** Một người đã sở hữu trọn nhóm màu hay chưa. */
+export function tronBo(doc: DocO, nhom: MaNhom, chu: string): boolean {
+  if (!chu) return false;
+  return BAN_CO
+    .filter((o) => o.nhom === nhom)
+    .every((o) => doc(o.i)?.chu === chu);
+}
+
+/** Số nhóm đất mà một người đang sở hữu trọn vẹn. */
+export function demNhomTronBo(doc: DocO, chu: string): number {
+  if (!chu) return 0;
+  return THU_TU_NHOM.filter((n) => tronBo(doc, n, chu)).length;
+}
+
+/** Đếm số ô cùng loại mà một người đang sở hữu. */
+export function demTheoLoai(doc: DocO, loai: O["loai"], chu: string): number {
+  if (!chu) return 0;
+  return BAN_CO.filter((o) => o.loai === loai && doc(o.i)?.chu === chu).length;
+}
+
+/**
+ * Người này có thắng ngay lập tức hay không, và vì sao.
+ *
+ * Hai cách thắng ngay, kiểm tra sau mỗi lần đổi chủ một ô:
+ *   "bien"  — gom đủ toàn bộ ô biển
+ *   "nhom"  — sở hữu trọn vẹn SO_NHOM_THANG nhóm đất
+ */
+export function thangNgay(doc: DocO, chu: string): "bien" | "nhom" | null {
+  if (!chu) return null;
+  if (SO_BIEN > 0 && demTheoLoai(doc, "bien", chu) >= SO_BIEN) return "bien";
+  if (demNhomTronBo(doc, chu) >= SO_NHOM_THANG) return "nhom";
+  return null;
+}
+
+/**
+ * Tiền thuê phải trả khi dừng ở ô i.
+ *
+ * Trả về 0 khi ô chưa có chủ, đang thế chấp, đang mất điện, hoặc người dừng
+ * chính là chủ.
+ */
+export function tienThue(doc: DocO, i: number, nguoiDung: string): number {
+  const o = BAN_CO[i];
+  const tt = doc(i);
+  if (!o || !tt || !coTheMua(o)) return 0;
+  if (!tt.chu || tt.chu === nguoiDung || tt.theChap) return 0;
+  if (tt.matDien > 0) return 0;
+
+  if (o.loai === "dat") {
+    const b = bangThue(o.gia!);
+    if (tt.nha > 0) return b[Math.min(BAC_KHACH_SAN, tt.nha)] * DON_VI;
+    // Mới cắm cờ nhưng chủ đã trọn nhóm thì tiền thuê nhân đôi.
+    return (tronBo(doc, o.nhom!, tt.chu) ? b[0] * 2 : b[0]) * DON_VI;
+  }
+
+  const n = demTheoLoai(doc, "bien", tt.chu);
+  const bang = bangThueBien();
+  return bang[Math.max(0, Math.min(bang.length - 1, n - 1))] * DON_VI;
+}
+
+/** Thuế phải nộp ở ô thuế: 10% tài sản ròng, không vượt mức in trên ô. */
+export function tienThueO(o: O, taiSan: number): number {
+  const tran = (o.thue ?? 0) * DON_VI;
+  return Math.min(tran, Math.round(taiSan / 10));
+}
+
+/**
+ * Có được xây thêm một bậc ở ô i hay không.
+ *
+ * Kiểm tra: là ô đất của mình, đã trọn nhóm, không ô nào trong nhóm đang thế
+ * chấp, luật xây đều, hộp còn nhà, đủ tiền, và luật vòng đầu.
+ *
+ * `soVong` là vòng thứ mấy người chơi đang đi (bắt đầu từ 1). Ở vòng đầu
+ * không ai được xây tới bậc 3 nhà — luật này giữ cho người đi sau không bị
+ * bỏ lại quá xa ngay từ đầu ván.
  */
 export function coTheXay(
   doc: DocO,
@@ -114,6 +219,7 @@ export function coTheXay(
   tienMat: number,
   nhaConLai: number,
   khachSanConLai: number,
+  soVong = 99,
 ): KetQuaKiemTra {
   const o = BAN_CO[i];
   const tt = doc(i);
@@ -128,8 +234,11 @@ export function coTheXay(
   if (trongNhom.some((x) => doc(x.i)?.theChap)) {
     return { ok: false, lyDo: "Có ô trong nhóm đang thế chấp." };
   }
-  if (tt.nha >= 5) {
+  if (tt.nha >= BAC_KHACH_SAN) {
     return { ok: false, lyDo: "Đã có khách sạn, không xây thêm được." };
+  }
+  if (soVong <= 1 && tt.nha >= BAC_TOI_DA_VONG_DAU) {
+    return { ok: false, lyDo: "Vòng đầu chỉ được xây tới 2 nhà. Qua Xuất phát rồi xây tiếp." };
   }
 
   const itNhat = Math.min(...trongNhom.map((x) => doc(x.i)?.nha ?? 0));
@@ -137,8 +246,8 @@ export function coTheXay(
     return { ok: false, lyDo: "Luật xây đều: hãy xây ở ô còn ít nhà hơn trước." };
   }
 
-  // Nâng từ 4 nhà lên khách sạn thì trả 4 nhà về hộp, chỉ cần 1 khách sạn.
-  const nangKhachSan = tt.nha === 4;
+  // Nâng từ 3 nhà lên khách sạn thì trả 3 nhà về hộp, chỉ cần 1 khách sạn.
+  const nangKhachSan = tt.nha === BAC_KHACH_SAN - 1;
   if (nangKhachSan && khachSanConLai <= 0) {
     return { ok: false, lyDo: "Hộp đã hết khách sạn, phải chờ người khác bán ra." };
   }
@@ -151,6 +260,37 @@ export function coTheXay(
   return { ok: true };
 }
 
+/**
+ * Có bán được gì ở ô i hay không, và bán thì thu về bao nhiêu.
+ *
+ * Bán theo bậc: khách sạn hạ về 3 nhà, nhà hạ một căn, hết nhà thì thế chấp
+ * cả ô. Mỗi lần gọi chỉ hạ một bậc để người chơi thấy rõ mình đang bán gì.
+ */
+export function coTheBan(
+  doc: DocO,
+  i: number,
+  chu: string,
+  nhaConLai = 99,
+): KetQuaKiemTra & { thuVe?: number; viec?: "khachsan" | "nha" | "thechap" } {
+  const o = BAN_CO[i];
+  const tt = doc(i);
+  if (!o || !tt) return { ok: false, lyDo: "Ô không hợp lệ." };
+  if (tt.chu !== chu) return { ok: false, lyDo: "Đây không phải ô của bạn." };
+
+  if (o.loai === "dat" && tt.nha >= BAC_KHACH_SAN) {
+    // Hạ khách sạn phải lấy 3 nhà từ hộp ra thay vào, hộp cạn thì không hạ được.
+    if (nhaConLai < BAC_KHACH_SAN - 1) {
+      return { ok: false, lyDo: "Hộp không còn đủ nhà để hạ khách sạn xuống." };
+    }
+    return { ok: true, viec: "khachsan", thuVe: Math.floor(giaXay(o) / 2) };
+  }
+  if (o.loai === "dat" && tt.nha > 0) {
+    return { ok: true, viec: "nha", thuVe: Math.floor(giaXay(o) / 2) };
+  }
+  if (tt.theChap) return { ok: false, lyDo: "Ô này đã thế chấp rồi." };
+  return { ok: true, viec: "thechap", thuVe: giaTheChap(o) };
+}
+
 /** Tổng tài sản: tiền mặt cộng giá đất chưa thế chấp cộng giá nhà đã xây. */
 export function taiSanRong(doc: DocO, chu: string, tienMat: number): number {
   let tong = tienMat;
@@ -158,7 +298,10 @@ export function taiSanRong(doc: DocO, chu: string, tienMat: number): number {
     const tt = doc(o.i);
     if (!tt || tt.chu !== chu) continue;
     tong += tt.theChap ? giaTheChap(o) : giaMua(o);
-    if (o.loai === "dat" && tt.nha > 0) tong += tt.nha * giaXay(o);
+    if (o.loai === "dat" && tt.nha > 0) {
+      const bac = tt.nha >= BAC_KHACH_SAN ? BAC_KHACH_SAN : tt.nha;
+      tong += bac * giaXay(o);
+    }
   }
   return tong;
 }
@@ -173,7 +316,10 @@ export function khaNangChiTra(doc: DocO, chu: string, tienMat: number): number {
   for (const o of BAN_CO) {
     const tt = doc(o.i);
     if (!tt || tt.chu !== chu) continue;
-    if (o.loai === "dat" && tt.nha > 0) tong += Math.floor((tt.nha * giaXay(o)) / 2);
+    if (o.loai === "dat" && tt.nha > 0) {
+      const bac = tt.nha >= BAC_KHACH_SAN ? BAC_KHACH_SAN : tt.nha;
+      tong += Math.floor((bac * giaXay(o)) / 2);
+    }
     if (!tt.theChap) tong += giaTheChap(o);
   }
   return tong;
@@ -186,7 +332,7 @@ export function demNhaTrenBan(doc: DocO): { nha: number; khachSan: number } {
   for (const o of BAN_CO) {
     const tt = doc(o.i);
     if (!tt || o.loai !== "dat") continue;
-    if (tt.nha >= 5) khachSan++;
+    if (tt.nha >= BAC_KHACH_SAN) khachSan++;
     else nha += tt.nha;
   }
   return { nha, khachSan };

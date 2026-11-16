@@ -2,11 +2,14 @@ import { Room, Client, CloseCode, Delayed, type AuthContext } from "colyseus";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { nguoiDungTuToken, type NguoiDung } from "../config/auth.js";
 import {
-  BAN_CO, DON_VI, LUONG, LUOT_KET_DAO, O_DAO_HOANG, O_XUAT_PHAT, SO_O,
-  TIEN_BAN_DAU, TIEN_RA_DAO, coTheMua, coTheXay, dinhDang,
-  giaMua, giaTheChap, giaXay, khaNangChiTra, taiSanRong, tienThue,
-  BO_CO_HOI, BO_KHI_VAN,
-  type DocO, type The,
+  BAC_KHACH_SAN, BAN_CO, DON_VI, LUONG, LUOT_KET_DAO, LUOT_MAT_DIEN,
+  O_DAO_HOANG, O_XUAT_PHAT, SO_NHOM_THANG, SO_O,
+  TIEN_BAN_DAU, TIEN_RA_DAO,
+  coTheBan, coTheMua, coTheMuaDut, coTheXay, dinhDang,
+  giaMua, giaMuaDut, giaTheChap, giaXay, khaNangChiTra,
+  taiSanRong, thangNgay, tienThue, tienThueO,
+  BO_CO_HOI,
+  type DocO, type KieuChon, type The,
 } from "@co-ty-phu/shared";
 import { luuVan, type NguoiTrongVan } from "../db/kho.js";
 import { GameState, NguoiChoi, DongNhatKy, TrangThaiO as OSchema } from "./schema/GameState.js";
@@ -15,7 +18,11 @@ import { gieoXucXac, tron } from "../rng.js";
 
 /** Thời gian cho mỗi lượt tung xúc xắc. */
 const GIAY_TUNG = 30_000;
-/** Thời gian để quyết định mua, trả hay xây. */
+/**
+ * Thời gian để quyết định: mua, mua đứt, xây, bán gom tiền, hay chọn ô cho
+ * thẻ cơ hội. Mọi giai đoạn chờ người chơi đều dùng chung con số này để
+ * thanh đếm ngược trong HUD lúc nào cũng khớp.
+ */
 const GIAY_QUYET = 25_000;
 /** Giữ ghế bao lâu khi người chơi rớt mạng. */
 const GIAY_GIU_GHE = 60;
@@ -41,7 +48,14 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
   private dongHo?: Delayed;
   private boCoHoi: The[] = [];
-  private boKhiVan: The[] = [];
+
+  /**
+   * Việc phải làm sau khi người chơi gom đủ tiền, hoặc sau khi họ chọn xong ô
+   * cho thẻ cơ hội. Giữ ở đây vì luồng ván chơi bị cắt làm hai nửa: nửa trước
+   * dừng lại chờ người chơi, nửa sau chạy tiếp khi họ đã quyết.
+   */
+  private viecSauGom: (() => void) | null = null;
+  private viecSauChon: (() => void) | null = null;
 
   /** Mật khẩu phòng giữ ở dạng băm trong bộ nhớ phòng, không bao giờ vào state. */
   private muoi = "";
@@ -62,7 +76,6 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
   onCreate(options: TuyChonVaoPhong = {}) {
     for (let i = 0; i < SO_O; i++) this.state.o.push(new OSchema());
     this.boCoHoi = tron([...BO_CO_HOI]);
-    this.boKhiVan = tron([...BO_KHI_VAN]);
 
     this.state.tenPhong =
       String(options.tenPhong ?? "").trim().slice(0, 24) || `Phòng ${this.roomId}`;
@@ -112,6 +125,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     p.thuTu = this.mauConTrong();
     p.tien = TIEN_BAN_DAU;
     p.viTri = O_XUAT_PHAT;
+    p.soVong = 1;
     this.state.nguoiChoi.set(client.sessionId, p);
 
     if (!this.state.chuPhong) this.state.chuPhong = client.sessionId;
@@ -198,6 +212,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       this.tung(client.sessionId);
     },
 
+    /** Mua ô chưa có chủ, đúng giá in trên bàn cờ. */
     mua: (client: Client) => {
       if (!this.denLuot(client) || this.state.giaiDoan !== "quyet") return;
       if (!this.choPhep("mua")) return;
@@ -214,18 +229,49 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       this.ketThucQuyet();
     },
 
+    /**
+     * Mua đứt ô của người khác. Tiền trả thẳng cho chủ cũ, công trình trên ô
+     * đổi chủ theo. Khách sạn và ô đang thế chấp thì không mua đứt được.
+     */
+    muadut: (client: Client) => {
+      if (!this.denLuot(client) || this.state.giaiDoan !== "quyet") return;
+      if (!this.choPhep("muadut")) return;
+
+      const sid = client.sessionId;
+      const i = this.state.oChoQuyet;
+      const o = BAN_CO[i];
+      const tt = this.state.o[i];
+      const p = this.state.nguoiChoi.get(sid)!;
+
+      const kq = coTheMuaDut(this.doc, i, sid, p.tien);
+      if (!kq.ok) {
+        client.send("loi", { thongBao: kq.lyDo });
+        return;
+      }
+
+      const gia = giaMuaDut(o, tt);
+      const chuCu = this.state.nguoiChoi.get(tt.chu);
+      p.tien -= gia;
+      if (chuCu) chuCu.tien += gia;
+      tt.chu = sid;
+      tt.matDien = 0;
+      this.ghi(
+        `${p.ten} mua đứt ${o.ten} của ${chuCu?.ten ?? "?"} với ${dinhDang(gia)}.`,
+        "mua",
+      );
+      this.ketThucQuyet();
+    },
+
     boqua: (client: Client) => {
       if (!this.denLuot(client) || this.state.giaiDoan !== "quyet") return;
       if (!this.choPhep("boqua")) return;
       const o = BAN_CO[this.state.oChoQuyet];
-      this.ghi(`${o.ten} chưa ai mua, đưa ra đấu giá ở ván sau.`, "he-thong");
-      this.ketThucQuyet();
-    },
-
-    tra: (client: Client) => {
-      if (!this.denLuot(client) || this.state.giaiDoan !== "quyet") return;
-      if (!this.choPhep("tra")) return;
-      this.traTienThue(client.sessionId);
+      this.ghi(
+        this.choPhep("muadut")
+          ? `${o?.ten ?? "Ô này"} vẫn thuộc chủ cũ.`
+          : `${o?.ten ?? "Ô này"} chưa ai mua.`,
+        "he-thong",
+      );
       this.ketThucQuyet();
     },
 
@@ -241,7 +287,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
       const kq = coTheXay(
         this.doc, i, client.sessionId, p.tien,
-        this.state.nhaConLai, this.state.khachSanConLai,
+        this.state.nhaConLai, this.state.khachSanConLai, p.soVong,
       );
       if (!kq.ok) {
         client.send("loi", { thongBao: kq.lyDo });
@@ -250,9 +296,10 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
       const tt = this.state.o[i];
       p.tien -= giaXay(o);
-      if (tt.nha === 4) {
-        tt.nha = 5;
-        this.state.nhaConLai += 4;
+      if (tt.nha === BAC_KHACH_SAN - 1) {
+        // Nâng lên khách sạn: trả 3 nhà về hộp, lấy ra 1 khách sạn.
+        tt.nha = BAC_KHACH_SAN;
+        this.state.nhaConLai += BAC_KHACH_SAN - 1;
         this.state.khachSanConLai -= 1;
         this.ghi(`${p.ten} xây khách sạn ở ${o.ten}.`, "xay");
       } else {
@@ -265,6 +312,54 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       if (this.state.giaiDoan === "quyet" && this.state.oChoQuyet === i) {
         this.moQuyetDinhODatMinh(client.sessionId, i);
       }
+    },
+
+    /**
+     * Bán bớt một bậc công trình, hoặc thế chấp ô nếu đã hết nhà.
+     *
+     * Dùng được cả khi đang bị bắt gom tiền và khi đang tới lượt mình mà
+     * muốn chủ động xoay tiền trước.
+     */
+    ban: (client: Client, tin: { o?: number } = {}) => {
+      const sid = client.sessionId;
+      const p = this.state.nguoiChoi.get(sid);
+      if (!p || p.phaSan || this.state.luotCua !== sid) return;
+
+      const dangGom = this.state.giaiDoan === "gom";
+      const tuNguyen = this.state.giaiDoan === "tung" || this.state.giaiDoan === "quyet";
+      if (!dangGom && !tuNguyen) return;
+
+      const i = Number(tin.o);
+      const kq = coTheBan(this.doc, i, sid, this.state.nhaConLai);
+      if (!kq.ok) {
+        client.send("loi", { thongBao: kq.lyDo });
+        return;
+      }
+
+      this.banMotBac(sid, p, i);
+      if (dangGom && p.tien >= this.state.tienCanGom) this.xongGom();
+    },
+
+    /** Nhường cho server tự bán tài sản cho đủ số tiền đang thiếu. */
+    tudong: (client: Client) => {
+      if (!this.denLuot(client) || this.state.giaiDoan !== "gom") return;
+      const p = this.state.nguoiChoi.get(client.sessionId);
+      if (!p) return;
+      this.banTaiSan(client.sessionId, p, this.state.tienCanGom);
+      this.xongGom();
+    },
+
+    /** Chọn một ô trên bàn cho thẻ cơ hội đang chờ. */
+    chon: (client: Client, tin: { o?: number } = {}) => {
+      if (!this.denLuot(client) || this.state.giaiDoan !== "chon") return;
+      const i = Number(tin.o);
+      if (!this.oDuocChon().includes(i)) {
+        client.send("loi", { thongBao: "Ô này không chọn được." });
+        return;
+      }
+      const kieu = this.state.kieuChon as KieuChon;
+      this.apDungChon(client.sessionId, kieu, i);
+      this.xongChon();
     },
 
     tieptuc: (client: Client) => {
@@ -284,6 +379,10 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     return this.state.hanhDong.split(",").includes(hd);
   }
 
+  private oDuocChon(): number[] {
+    return this.state.oChonDuoc ? this.state.oChonDuoc.split(",").map(Number) : [];
+  }
+
   private ghi(noiDung: string, loai: string) {
     const d = new DongNhatKy();
     d.noiDung = noiDung;
@@ -297,6 +396,18 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       .filter(([, p]) => !p.phaSan)
       .sort((a, b) => a[1].thuTu - b[1].thuTu)
       .map(([sid]) => sid);
+  }
+
+  /** Người ngồi kế tiếp còn trong cuộc, dùng cho thẻ tặng ô. */
+  private nguoiKeTiep(sid: string): string | undefined {
+    const tatCa = this.thuTuNguoiChoi();
+    const viTri = tatCa.indexOf(sid);
+    if (viTri < 0) return tatCa.find((x) => x !== sid);
+    for (let k = 1; k < tatCa.length; k++) {
+      const ke = tatCa[(viTri + k) % tatCa.length];
+      if (ke && ke !== sid) return ke;
+    }
+    return undefined;
   }
 
   private datDongHo(ms: number, fn: () => void) {
@@ -326,7 +437,12 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     this.state.soLanDoi = 0;
     this.state.oChoQuyet = -1;
     this.state.tienPhaiTra = 0;
+    this.state.tienCanGom = 0;
+    this.state.kieuChon = "";
+    this.state.oChonDuoc = "";
     this.state.hanhDong = "";
+    this.viecSauGom = null;
+    this.viecSauChon = null;
     this.state.thongBao = p.oDao
       ? `${p.ten} đang ở Đảo Hoang, tung đôi để ra.`
       : `Tới lượt ${p.ten}.`;
@@ -345,6 +461,8 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
   private tung(sid: string) {
     const p = this.state.nguoiChoi.get(sid);
     if (!p || p.phaSan || this.state.giaiDoan !== "tung") return;
+
+    this.giamMatDien();
 
     const [a, b] = gieoXucXac();
     this.state.xx1 = a;
@@ -370,6 +488,16 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     this.ghi(`${p.ten} tung ${a} + ${b} = ${tong}${doi ? " (đôi)" : ""}.`, "he-thong");
     this.diChuyen(p, tong);
     this.xuLyO(sid);
+  }
+
+  /** Mỗi lần tung xúc xắc thì các ô đang mất điện bớt đi một lượt. */
+  private giamMatDien() {
+    for (const o of BAN_CO) {
+      const tt = this.state.o[o.i];
+      if (!tt || tt.matDien <= 0) continue;
+      tt.matDien -= 1;
+      if (tt.matDien === 0) this.ghi(`${o.ten} đã có điện trở lại.`, "he-thong");
+    }
   }
 
   private xuLyODao(sid: string, p: NguoiChoi, doi: boolean, tong: number) {
@@ -406,15 +534,12 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     this.state.soLanDoi = 0;
   }
 
-  /** Dời quân và trả lương nếu đi qua ô Xuất phát. */
+  /** Dời quân, trả lương và tăng số vòng nếu đi qua ô Xuất phát. */
   private diChuyen(p: NguoiChoi, soO: number) {
     const cu = p.viTri;
     const moi = (cu + soO + SO_O * 2) % SO_O;
     // Đi tiến mà chỉ số nhỏ lại nghĩa là đã vòng qua ô Xuất phát.
-    if (soO > 0 && moi <= cu) {
-      p.tien += LUONG;
-      this.ghi(`${p.ten} đi qua Xuất phát, nhận ${dinhDang(LUONG)}.`, "tien");
-    }
+    if (soO > 0 && moi <= cu) this.quaXuatPhat(p);
     p.viTri = moi;
     p.buocCuoi = soO;
   }
@@ -426,12 +551,15 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
    */
   private nhayToi(p: NguoiChoi, oDich: number, nhanLuong = true) {
     const cu = p.viTri;
-    if (nhanLuong && oDich <= cu) {
-      p.tien += LUONG;
-      this.ghi(`${p.ten} đi qua Xuất phát, nhận ${dinhDang(LUONG)}.`, "tien");
-    }
+    if (nhanLuong && oDich <= cu) this.quaXuatPhat(p);
     p.viTri = oDich;
     p.buocCuoi = (oDich - cu + SO_O) % SO_O;
+  }
+
+  private quaXuatPhat(p: NguoiChoi) {
+    p.tien += LUONG;
+    if (p.soVong < 255) p.soVong += 1;
+    this.ghi(`${p.ten} đi qua Xuất phát, nhận ${dinhDang(LUONG)}.`, "tien");
   }
 
   // ----------------------------------------------------- xử lý ô vừa dừng
@@ -454,22 +582,24 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       return;
     }
 
-    // --- ô thuế ---
+    // --- ô thuế: 10% tài sản ròng, không vượt mức in trên ô ---
     if (o.loai === "thue") {
-      const so = (o.thue ?? 0) * DON_VI;
-      this.chuyenTien(p, -so);
-      this.ghi(`${p.ten} nộp ${dinhDang(so)} tiền ${o.ten.toLowerCase()}.`, "tien");
-      this.moQuyet(["tieptuc"], `Đã nộp ${dinhDang(so)}.`);
+      const so = tienThueO(o, taiSanRong(this.doc, sid, p.tien));
+      this.traRoi(sid, so, `tiền thuế`, undefined, () => {
+        if (this.kiemTraKetThuc()) return;
+        this.moQuyet(["tieptuc"], `Đã nộp ${dinhDang(so)} tiền thuế.`);
+      });
       return;
     }
 
-    // --- thẻ ---
-    if (o.loai === "cohoi" || o.loai === "khivan") {
-      const the = this.rutThe(o.loai);
+    // --- thẻ cơ hội ---
+    if (o.loai === "cohoi") {
+      const the = this.rutThe();
       this.ghi(`${p.ten} rút thẻ: ${the.noiDung}`, "the");
-      this.apDungThe(sid, p, the);
-      if (this.state.giaiDoan === "ketthuc") return;
-      this.moQuyet(["tieptuc"], the.noiDung);
+      this.apDungThe(sid, p, the, () => {
+        if (this.kiemTraKetThuc()) return;
+        this.moQuyet(["tieptuc"], the.noiDung);
+      });
       return;
     }
 
@@ -489,24 +619,55 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
         return;
       }
 
-      if (tt.chu !== sid) {
-        const diem = this.state.xx1 + this.state.xx2;
-        const thue = tienThue(this.doc, i, sid, diem);
-        this.state.tienPhaiTra = thue;
-        if (thue <= 0) {
-          this.moQuyet(["tieptuc"], `${o.ten} đang thế chấp, không phải trả tiền thuê.`);
-          return;
-        }
-        const chu = this.state.nguoiChoi.get(tt.chu);
-        this.moQuyet(["tra"], `${o.ten} của ${chu?.ten ?? "?"}, tiền thuê ${dinhDang(thue)}.`);
+      if (tt.chu === sid) {
+        this.moQuyetDinhODatMinh(sid, i);
         return;
       }
 
-      this.moQuyetDinhODatMinh(sid, i);
+      // Ô của người khác: tiền thuê bị trừ ngay, không có nút từ chối. Sau đó
+      // mới tới lượt người chơi quyết có mua đứt hay không.
+      const thue = tienThue(this.doc, i, sid);
+      const chuCu = tt.chu;
+      this.state.tienPhaiTra = thue;
+      const tiep = () => {
+        if (this.kiemTraKetThuc()) return;
+        this.moQuyetMuaDut(sid, i);
+      };
+
+      if (thue > 0) {
+        this.traRoi(sid, thue, `tiền thuê ${o.ten}`, chuCu, tiep);
+      } else {
+        const chu = this.state.nguoiChoi.get(chuCu);
+        this.ghi(
+          tt.matDien > 0
+            ? `${o.ten} đang mất điện, ${p.ten} không phải trả tiền.`
+            : `${o.ten} của ${chu?.ten ?? "?"} đang thế chấp, không phải trả tiền.`,
+          "he-thong",
+        );
+        tiep();
+      }
       return;
     }
 
     this.moQuyet(["tieptuc"], "Nghỉ chân.");
+  }
+
+  /** Sau khi đã trả tiền thuê: cho người chơi chọn mua đứt hay bỏ qua. */
+  private moQuyetMuaDut(sid: string, i: number) {
+    const p = this.state.nguoiChoi.get(sid);
+    if (!p || p.phaSan) { this.ketThucQuyet(); return; }
+
+    const o = BAN_CO[i];
+    const tt = this.state.o[i];
+    const kq = coTheMuaDut(this.doc, i, sid, p.tien);
+    if (kq.ok) {
+      this.moQuyet(
+        ["muadut", "boqua"],
+        `Mua đứt ${o.ten} từ tay chủ cũ với ${dinhDang(giaMuaDut(o, tt))}?`,
+      );
+    } else {
+      this.moQuyet(["tieptuc"], kq.lyDo!);
+    }
   }
 
   private moQuyetDinhODatMinh(sid: string, i: number) {
@@ -516,13 +677,16 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       this.moQuyet(["tieptuc"], "Ô của bạn, nghỉ chân không mất gì.");
       return;
     }
-    const kq = coTheXay(this.doc, i, sid, p.tien, this.state.nhaConLai, this.state.khachSanConLai);
+    const kq = coTheXay(
+      this.doc, i, sid, p.tien,
+      this.state.nhaConLai, this.state.khachSanConLai, p.soVong,
+    );
     if (kq.ok) {
       const gia = giaXay(o);
       const tt = this.state.o[i];
       this.moQuyet(
         ["xay", "tieptuc"],
-        tt.nha === 4
+        tt.nha === BAC_KHACH_SAN - 1
           ? `Nâng ${o.ten} lên khách sạn với ${dinhDang(gia)}.`
           : `Đất của bạn, xây thêm nhà với ${dinhDang(gia)}.`,
       );
@@ -540,10 +704,14 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
   private hetGioQuyet() {
     const hd = this.state.hanhDong.split(",");
-    const sid = this.state.luotCua;
-    if (hd.includes("tra")) this.traTienThue(sid);
-    else if (hd.includes("boqua")) {
-      this.ghi(`Hết giờ, ${BAN_CO[this.state.oChoQuyet]?.ten ?? "ô này"} vẫn chưa có chủ.`, "he-thong");
+    if (hd.includes("boqua")) {
+      const o = BAN_CO[this.state.oChoQuyet];
+      this.ghi(
+        hd.includes("muadut")
+          ? `Hết giờ, ${o?.ten ?? "ô này"} vẫn thuộc chủ cũ.`
+          : `Hết giờ, ${o?.ten ?? "ô này"} vẫn chưa có chủ.`,
+        "he-thong",
+      );
     }
     this.ketThucQuyet();
   }
@@ -571,23 +739,124 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
   // ------------------------------------------------------------ tiền bạc
 
-  private traTienThue(sid: string) {
+  /**
+   * Trả một khoản bắt buộc rồi chạy tiếp `xong`.
+   *
+   * Đủ tiền mặt thì trừ ngay. Thiếu tiền mặt nhưng còn tài sản thì dừng luồng
+   * lại, mở giai đoạn "gom" cho người chơi tự chọn ô để bán — hoặc bấm tự
+   * động. Không còn gì để bán thì phá sản và chủ nợ nhận phần còn lại.
+   */
+  private traRoi(
+    sid: string,
+    so: number,
+    nhan: string,
+    choAi: string | undefined,
+    xong: () => void,
+  ) {
     const p = this.state.nguoiChoi.get(sid);
-    const i = this.state.oChoQuyet;
-    if (!p || i < 0) return;
-    const tt = this.state.o[i];
-    const chu = tt.chu ? this.state.nguoiChoi.get(tt.chu) : undefined;
-    const so = this.state.tienPhaiTra;
-    if (!chu || so <= 0) return;
+    if (!p) return;
+    if (so <= 0) { xong(); return; }
 
-    const thucTra = this.chuyenTien(p, -so);
-    chu.tien += thucTra;
-    this.ghi(`${p.ten} trả ${dinhDang(thucTra)} tiền thuê cho ${chu.ten}.`, "tien");
+    if (p.tien >= so) {
+      this.traNgay(sid, so, nhan, choAi);
+      xong();
+      return;
+    }
+
+    if (khaNangChiTra(this.doc, sid, p.tien) >= so) {
+      this.moGomTien(sid, so, nhan, () => {
+        this.traNgay(sid, so, nhan, choAi);
+        xong();
+      });
+      return;
+    }
+
+    const con = p.tien;
+    p.tien = 0;
+    if (choAi) {
+      const chu = this.state.nguoiChoi.get(choAi);
+      if (chu) chu.tien += con;
+    }
+    this.ghi(`${p.ten} không trả nổi ${nhan}.`, "tien");
+    this.choPhaSan(sid);
+    xong();
+  }
+
+  private traNgay(sid: string, so: number, nhan: string, choAi?: string) {
+    const p = this.state.nguoiChoi.get(sid);
+    if (!p) return;
+    p.tien -= so;
+    const chu = choAi ? this.state.nguoiChoi.get(choAi) : undefined;
+    if (chu) chu.tien += so;
+    this.ghi(
+      chu
+        ? `${p.ten} trả ${dinhDang(so)} ${nhan} cho ${chu.ten}.`
+        : `${p.ten} nộp ${dinhDang(so)} ${nhan}.`,
+      "tien",
+    );
+  }
+
+  // ------------------------------------------------------- gom tiền để trả
+
+  /**
+   * Thiếu tiền mặt thì dừng ván lại ở đây. Người chơi tự bấm vào ô của mình
+   * để bán bớt cho tới khi đủ, hoặc nhường server bán giúp. Hết giờ thì
+   * server bán thay — không ai bị treo ván vì rời máy.
+   */
+  private moGomTien(sid: string, can: number, nhan: string, xong: () => void) {
+    const p = this.state.nguoiChoi.get(sid)!;
+    this.viecSauGom = xong;
+    this.state.giaiDoan = "gom";
+    this.state.tienCanGom = can;
+    this.state.hanhDong = "ban,tudong";
+    this.state.thongBao =
+      `Cần ${dinhDang(can)} để trả ${nhan} nhưng bạn chỉ có ${dinhDang(p.tien)}. ` +
+      "Bấm vào ô của bạn để bán bớt, hoặc để server tự bán.";
+    this.datDongHo(GIAY_QUYET, () => {
+      this.banTaiSan(sid, p, this.state.tienCanGom);
+      this.xongGom();
+    });
+  }
+
+  private xongGom() {
+    const viec = this.viecSauGom;
+    this.viecSauGom = null;
+    this.state.tienCanGom = 0;
+    this.state.hanhDong = "";
+    viec?.();
+  }
+
+  /** Bán một bậc công trình ở ô i, hoặc thế chấp ô nếu đã hết nhà. */
+  private banMotBac(sid: string, p: NguoiChoi, i: number) {
+    const o = BAN_CO[i];
+    const tt = this.state.o[i];
+
+    if (o.loai === "dat" && tt.nha > 0) {
+      if (tt.nha >= BAC_KHACH_SAN) {
+        // Hạ khách sạn về 3 nhà: trả khách sạn về hộp, lấy 3 nhà ra.
+        tt.nha = BAC_KHACH_SAN - 1;
+        this.state.khachSanConLai += 1;
+        this.state.nhaConLai -= BAC_KHACH_SAN - 1;
+        p.tien += Math.floor(giaXay(o) / 2);
+        this.ghi(`${p.ten} bán khách sạn ở ${o.ten}, còn 3 nhà.`, "tien");
+      } else {
+        tt.nha -= 1;
+        this.state.nhaConLai += 1;
+        p.tien += Math.floor(giaXay(o) / 2);
+        this.ghi(`${p.ten} bán một nhà ở ${o.ten}.`, "tien");
+      }
+      return;
+    }
+
+    tt.theChap = true;
+    p.tien += giaTheChap(o);
+    this.ghi(`${p.ten} thế chấp ${o.ten}, lấy ${dinhDang(giaTheChap(o))}.`, "tien");
   }
 
   /**
-   * Cộng hoặc trừ tiền. Khi thiếu tiền mặt, tự bán nhà rồi thế chấp đất để
-   * gom đủ; vẫn không đủ thì người chơi phá sản.
+   * Cộng hoặc trừ tiền không qua giai đoạn gom. Dùng cho các khoản chạy theo
+   * vòng lặp (thẻ thu/trả mỗi người, tiền ra đảo): thiếu tiền thì tự bán nhà
+   * rồi thế chấp đất, vẫn không đủ thì phá sản.
    *
    * Trả về số tiền thực sự chuyển đi (dương), để bên nhận cộng đúng.
    */
@@ -622,25 +891,16 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       const tt = this.state.o[o.i];
       if (tt.chu !== sid || o.loai !== "dat" || tt.nha === 0) continue;
       while (tt.nha > 0 && p.tien < can) {
-        if (tt.nha === 5) {
-          tt.nha = 4;
-          this.state.khachSanConLai += 1;
-          this.state.nhaConLai -= 4;
-        } else {
-          tt.nha -= 1;
-          this.state.nhaConLai += 1;
-        }
-        p.tien += Math.floor(giaXay(o) / 2);
+        // Hộp không còn đủ nhà để hạ khách sạn thì đành bỏ qua ô này.
+        if (tt.nha >= BAC_KHACH_SAN && this.state.nhaConLai < BAC_KHACH_SAN - 1) break;
+        this.banMotBac(sid, p, o.i);
       }
-      this.ghi(`${p.ten} bán bớt nhà ở ${o.ten} để xoay tiền.`, "tien");
     }
     for (const o of BAN_CO) {
       if (p.tien >= can) return;
       const tt = this.state.o[o.i];
-      if (tt.chu !== sid || tt.theChap) continue;
-      tt.theChap = true;
-      p.tien += giaTheChap(o);
-      this.ghi(`${p.ten} thế chấp ${o.ten}.`, "tien");
+      if (tt.chu !== sid || tt.theChap || tt.nha > 0) continue;
+      this.banMotBac(sid, p, o.i);
     }
   }
 
@@ -658,34 +918,69 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       const tt = this.state.o[o.i];
       if (tt.chu !== sid) continue;
       if (o.loai === "dat" && tt.nha > 0) {
-        if (tt.nha === 5) this.state.khachSanConLai += 1;
+        if (tt.nha >= BAC_KHACH_SAN) this.state.khachSanConLai += 1;
         else this.state.nhaConLai += tt.nha;
       }
       tt.chu = "";
       tt.nha = 0;
       tt.theChap = false;
+      tt.matDien = 0;
     }
     this.ghi(`${p.ten} phá sản và rời cuộc chơi.`, "he-thong");
   }
 
-  private kiemTraKetThuc(): boolean {
-    const conLai = [...this.state.nguoiChoi.entries()].filter(([, p]) => !p.phaSan);
-    if (this.state.giaiDoan === "cho" || conLai.length > 1) return false;
+  // ------------------------------------------------------------ kết thúc
 
+  /**
+   * Ba cách kết thúc ván, kiểm tra sau mỗi lần một ô đổi chủ và mỗi lần có
+   * người phá sản:
+   *   1. Có người gom đủ toàn bộ ô biển.
+   *   2. Có người sở hữu trọn SO_NHOM_THANG nhóm đất.
+   *   3. Chỉ còn một người chưa phá sản.
+   */
+  private kiemTraKetThuc(): boolean {
+    if (this.state.giaiDoan === "ketthuc") return true;
+    if (this.state.giaiDoan === "cho") return false;
+
+    for (const [sid, p] of this.state.nguoiChoi.entries()) {
+      if (p.phaSan) continue;
+      const vi = thangNgay(this.doc, sid);
+      if (vi) { this.ketThuc(sid, vi); return true; }
+    }
+
+    const conLai = [...this.state.nguoiChoi.entries()].filter(([, p]) => !p.phaSan);
+    if (conLai.length > 1) return false;
+    this.ketThuc(conLai[0]?.[0] ?? "", "conlai");
+    return true;
+  }
+
+  private ketThuc(sid: string, lyDo: string) {
     this.dongHo?.clear();
+    this.viecSauGom = null;
+    this.viecSauChon = null;
     this.state.giaiDoan = "ketthuc";
     this.state.hanhDong = "";
     this.state.luotCua = "";
-    if (conLai.length === 1) {
-      this.state.nguoiThang = conLai[0][0];
-      this.state.thongBao = `${conLai[0][1].ten} thắng!`;
-      this.ghi(`${conLai[0][1].ten} là người cuối cùng còn trụ lại. Chúc mừng!`, "he-thong");
-    } else {
-      this.state.thongBao = "Ván kết thúc.";
-    }
+    this.state.oChoQuyet = -1;
+    this.state.tienCanGom = 0;
+    this.state.kieuChon = "";
+    this.state.oChonDuoc = "";
+    this.state.nguoiThang = sid;
+    this.state.lyDoThang = lyDo;
 
+    const p = sid ? this.state.nguoiChoi.get(sid) : undefined;
+    if (!p) {
+      this.state.thongBao = "Ván kết thúc.";
+      void this.luuKetQua();
+      return;
+    }
+    const vi =
+      lyDo === "bien" ? "gom đủ toàn bộ ô biển"
+      : lyDo === "nhom" ? `sở hữu trọn ${SO_NHOM_THANG} nhóm đất`
+      : "là người cuối cùng còn trụ lại";
+    this.state.thongBao = `${p.ten} thắng!`;
+    this.ghi(`${p.ten} ${vi}. Chúc mừng!`, "he-thong");
     void this.luuKetQua();
-    return true;
   }
 
   /**
@@ -736,22 +1031,23 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
 
   // --------------------------------------------------------------- thẻ bài
 
-  private rutThe(loai: "cohoi" | "khivan"): The {
-    const bo = loai === "cohoi" ? this.boCoHoi : this.boKhiVan;
-    const the = bo.shift()!;
-    bo.push(the); // thẻ đã dùng xuống đáy bộ
+  private rutThe(): The {
+    const the = this.boCoHoi.shift()!;
+    this.boCoHoi.push(the); // thẻ đã dùng xuống đáy bộ
     return the;
   }
 
-  private apDungThe(sid: string, p: NguoiChoi, the: The) {
+  private apDungThe(sid: string, p: NguoiChoi, the: The, xong: () => void) {
     const hu = the.hieuUng;
     switch (hu.loai) {
       case "nhan":
-        this.chuyenTien(p, hu.so * DON_VI);
+        p.tien += hu.so * DON_VI;
+        this.ghi(`${p.ten} nhận ${dinhDang(hu.so * DON_VI)}.`, "tien");
+        xong();
         break;
 
       case "nop":
-        this.chuyenTien(p, -hu.so * DON_VI);
+        this.traRoi(sid, hu.so * DON_VI, "theo thẻ cơ hội", undefined, xong);
         break;
 
       case "thuMoiNguoi": {
@@ -761,6 +1057,8 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
           tong += this.chuyenTien(x, -hu.so * DON_VI);
         }
         p.tien += tong;
+        this.ghi(`${p.ten} thu được ${dinhDang(tong)} từ những người khác.`, "tien");
+        xong();
         break;
       }
 
@@ -771,30 +1069,37 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
           x.tien += tra;
           if (p.phaSan) break;
         }
+        xong();
         break;
       }
 
       case "diToi":
         this.nhayToi(p, hu.o);
+        xong();
         break;
 
       case "vaoDao":
         this.vaoDao(p);
+        xong();
         break;
 
       case "luiLai":
         p.viTri = (p.viTri - hu.so + SO_O) % SO_O;
         p.buocCuoi = -hu.so;
+        xong();
         break;
 
       case "suaNha": {
         const { nha, khachSan } = this.demNhaCuaToi(sid);
         const so = (nha * hu.moiNha + khachSan * hu.moiKhachSan) * DON_VI;
-        if (so > 0) this.chuyenTien(p, -so);
+        this.traRoi(sid, so, "tiền sửa chữa", undefined, xong);
         break;
       }
+
+      case "chon":
+        this.moChon(sid, hu.kieu, the.noiDung, xong);
+        break;
     }
-    this.kiemTraKetThuc();
   }
 
   private demNhaCuaToi(sid: string): { nha: number; khachSan: number } {
@@ -803,9 +1108,125 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     for (const o of BAN_CO) {
       const tt = this.state.o[o.i];
       if (tt.chu !== sid || o.loai !== "dat") continue;
-      if (tt.nha >= 5) khachSan++;
+      if (tt.nha >= BAC_KHACH_SAN) khachSan++;
       else nha += tt.nha;
     }
     return { nha, khachSan };
+  }
+
+  // ------------------------------------------------- thẻ bắt chọn một ô
+
+  private moChon(sid: string, kieu: KieuChon, noiDung: string, xong: () => void) {
+    const ds = this.oHopLeDeChon(sid, kieu);
+    if (ds.length === 0) {
+      this.ghi("Không có ô nào hợp lệ, thẻ này không có tác dụng.", "the");
+      xong();
+      return;
+    }
+
+    this.viecSauChon = xong;
+    this.state.giaiDoan = "chon";
+    this.state.kieuChon = kieu;
+    this.state.oChonDuoc = ds.join(",");
+    this.state.hanhDong = "chon";
+    this.state.thongBao = noiDung;
+    this.datDongHo(GIAY_QUYET, () => {
+      // Hết giờ thì server chọn thay: ô đầu danh sách, trừ thẻ tặng ô thì
+      // chọn ô rẻ nhất để người chơi không mất phần đắt nhất vì chậm tay.
+      const i = kieu === "tangO"
+        ? ds.reduce((re, x) => ((BAN_CO[x].gia ?? 0) < (BAN_CO[re].gia ?? 0) ? x : re), ds[0])
+        : ds[0];
+      this.apDungChon(sid, kieu, i);
+      this.xongChon();
+    });
+  }
+
+  private xongChon() {
+    const viec = this.viecSauChon;
+    this.viecSauChon = null;
+    this.state.kieuChon = "";
+    this.state.oChonDuoc = "";
+    this.state.hanhDong = "";
+    viec?.();
+  }
+
+  /**
+   * Những ô mà thẻ được phép tác động. Bốn thẻ tương tác chỉ nhắm vào ô đất,
+   * ô biển nằm ngoài tầm — ai gom được biển thì giữ được biển.
+   */
+  private oHopLeDeChon(sid: string, kieu: KieuChon): number[] {
+    const ra: number[] = [];
+    for (const o of BAN_CO) {
+      if (o.loai !== "dat") continue;
+      const tt = this.state.o[o.i];
+      if (!tt.chu) continue;
+
+      if (kieu === "tangO") {
+        if (tt.chu === sid) ra.push(o.i);
+        continue;
+      }
+
+      if (tt.chu === sid) continue;
+      const chu = this.state.nguoiChoi.get(tt.chu);
+      if (!chu || chu.phaSan) continue;
+
+      if (kieu === "phaBo" && tt.nha >= BAC_KHACH_SAN) continue;
+      if (kieu === "haBac" && (tt.nha <= 0 || tt.nha >= BAC_KHACH_SAN)) continue;
+      if (kieu === "matDien" && tt.matDien > 0) continue;
+      ra.push(o.i);
+    }
+    return ra;
+  }
+
+  private apDungChon(sid: string, kieu: KieuChon, i: number) {
+    const p = this.state.nguoiChoi.get(sid);
+    const o = BAN_CO[i];
+    const tt = this.state.o[i];
+    if (!p || !o || !tt) return;
+    const chuCu = this.state.nguoiChoi.get(tt.chu);
+
+    switch (kieu) {
+      case "phaBo":
+        // Nhà trên ô trở về hộp, ô thành vô chủ và ai cũng mua lại được.
+        this.state.nhaConLai += tt.nha;
+        tt.chu = "";
+        tt.nha = 0;
+        tt.theChap = false;
+        tt.matDien = 0;
+        this.ghi(`${p.ten} phá bỏ ${o.ten} của ${chuCu?.ten ?? "?"}, ô thành vô chủ.`, "the");
+        break;
+
+      case "haBac":
+        tt.nha -= 1;
+        this.state.nhaConLai += 1;
+        this.ghi(
+          `${p.ten} hạ ${o.ten} của ${chuCu?.ten ?? "?"} xuống còn ${tt.nha} nhà.`,
+          "the",
+        );
+        break;
+
+      case "matDien":
+        tt.matDien = LUOT_MAT_DIEN;
+        this.ghi(
+          `${o.ten} của ${chuCu?.ten ?? "?"} mất điện ${LUOT_MAT_DIEN} lượt tung.`,
+          "the",
+        );
+        break;
+
+      case "tangO": {
+        const ke = this.nguoiKeTiep(sid);
+        const nhan = ke ? this.state.nguoiChoi.get(ke) : undefined;
+        if (!ke || !nhan) {
+          this.ghi("Không còn ai để tặng ô.", "the");
+          break;
+        }
+        tt.chu = ke;
+        tt.matDien = 0;
+        this.ghi(`${p.ten} tặng ${o.ten} cho ${nhan.ten}.`, "the");
+        break;
+      }
+    }
+
+    this.kiemTraKetThuc();
   }
 }

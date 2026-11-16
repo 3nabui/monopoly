@@ -8,10 +8,8 @@
 export type LoaiO =
   | "goc"      // 4 ô góc
   | "dat"      // ô đất thuộc một nhóm tỉnh thành
-  | "bien"     // ô biển, thay cho nhà ga
-  | "tienich"  // nhà máy điện / nhà máy nước
+  | "bien"     // ô biển, sở hữu hết là thắng ngay
   | "cohoi"    // thẻ Cơ hội
-  | "khivan"   // thẻ Khí vận
   | "thue";    // ô thuế
 
 export type MaNhom =
@@ -28,7 +26,7 @@ export interface Nhom {
 }
 
 export interface O {
-  /** Vị trí trên bàn cờ, 0..35. */
+  /** Vị trí trên bàn cờ, 0..31. */
   i: number;
   loai: LoaiO;
   ten: string;
@@ -36,9 +34,9 @@ export interface O {
   phu?: string;
   /** Chỉ có ở ô đất. */
   nhom?: MaNhom;
-  /** Giá mua, tính bằng K. Có ở ô đất, ô biển, ô tiện ích. */
+  /** Giá mua, tính bằng K. Có ở ô đất và ô biển. */
   gia?: number;
-  /** Số tiền phải nộp, tính bằng K. Chỉ có ở ô thuế. */
+  /** Mức thuế tối đa, tính bằng K. Chỉ có ở ô thuế. */
   thue?: number;
   /** Chỉ có ở ô góc. */
   icon?: IconGoc;
@@ -46,14 +44,22 @@ export interface O {
   moc?: string;
 }
 
-/** Trạng thái sở hữu của một ô, do server giữ. */
+/**
+ * Trạng thái sở hữu của một ô, do server giữ.
+ *
+ * Bậc công trình trên ô đất, lưu ở `nha`:
+ *   0 = mua đất (cắm cờ)   1 = một nhà   2 = hai nhà
+ *   3 = ba nhà             4 = khách sạn
+ */
 export interface TrangThaiO {
   /** sessionId của chủ sở hữu; chuỗi rỗng nghĩa là chưa ai mua. */
   chu: string;
-  /** 0..4 là số nhà, 5 nghĩa là đã nâng lên khách sạn. */
+  /** Bậc công trình, 0..4. Xem bảng trên. */
   nha: number;
   /** Đang thế chấp thì không thu được tiền thuê. */
   theChap: boolean;
+  /** Số lần tung xúc xắc còn lại mà ô này mất điện, 0 là bình thường. */
+  matDien: number;
 }
 
 /** Giai đoạn của ván chơi. Server là nơi duy nhất đổi giá trị này. */
@@ -61,7 +67,24 @@ export type GiaiDoan =
   | "cho"      // đang chờ đủ người
   | "tung"     // tới lượt ai đó, chờ họ tung xúc xắc
   | "quyet"    // đã dừng ở một ô, chờ người chơi quyết định
+  | "gom"      // thiếu tiền mặt, chờ người chơi chọn ô để bán
+  | "chon"     // thẻ cơ hội yêu cầu chọn một ô trên bàn
   | "ketthuc";
 
 /** Việc người chơi có thể làm khi đang ở giai đoạn "quyet". */
-export type HanhDong = "mua" | "boqua" | "tra" | "xay" | "tieptuc";
+export type HanhDong =
+  | "mua"      // mua ô chưa có chủ
+  | "muadut"   // mua đứt ô của người khác
+  | "boqua"
+  | "tra"      // trả tiền thuê
+  | "xay"
+  | "ban"      // bán bớt công trình hoặc thế chấp đất
+  | "tudong"   // để server tự bán cho đủ tiền
+  | "tieptuc";
+
+/** Việc thẻ cơ hội yêu cầu người rút chọn trên bàn cờ. */
+export type KieuChon =
+  | "phaBo"    // phá bỏ một ô của người khác, ô thành vô chủ
+  | "tangO"    // cho một ô của mình sang người kế tiếp
+  | "matDien"  // làm một ô của người khác mất điện
+  | "haBac";   // hạ một bậc công trình của người khác

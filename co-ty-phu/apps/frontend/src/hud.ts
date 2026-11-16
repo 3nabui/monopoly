@@ -1,6 +1,8 @@
 import {
-  BAN_CO, DON_VI, MAU_NGUOI_CHOI, NHOM, THU_TU_NHOM,
-  bangThue, dinhDang, giaMua, giaTheChap, giaXay, mauCuaO, tenLoaiO,
+  BAC_KHACH_SAN, BAN_CO, DON_VI, MAU_NGUOI_CHOI, NHOM, SO_BIEN, SO_NHOM_THANG,
+  THU_TU_NHOM,
+  bangThue, bangThueBien, coTheBan, dinhDang, giaMua, giaMuaDut, giaTheChap,
+  giaXay, mauCuaO, tenLoaiO,
 } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
 
@@ -17,6 +19,10 @@ export interface HudCallbacks {
   onTung(): void;
   onHanhDong(hd: string): void;
   onXay(o?: number): void;
+  /** Bán bớt một bậc công trình ở ô, hoặc thế chấp ô nếu đã hết nhà. */
+  onBan(o: number): void;
+  /** Chọn một ô cho thẻ cơ hội đang chờ. */
+  onChon(o: number): void;
   onDoiMau(): void;
   onChoiLai(): void;
   onPhongTo(): void;
@@ -205,7 +211,10 @@ export class Hud {
       `<div class="grp"><span class="sw" style="background:#00a2b5"></span>
        <span class="gi"><span class="gn">${o.ten}</span>
        <span class="gc">${o.phu ?? ""}</span><span class="gp">${o.gia}K</span></span></div>`,
-    ).join("");
+    ).join("")
+      + `<div class="grp"><span class="sw" style="background:#00a2b5"></span>
+         <span class="gi"><span class="gn">Gom đủ ${SO_BIEN} ô biển</span>
+         <span class="gc">Thắng ngay lập tức</span></span></div>`;
   }
 
   // ------------------------------------------------------------- hiển thị
@@ -301,38 +310,58 @@ export class Hud {
   private vePanel(anh: AnhChup) {
     const ap = $("actpanel");
     const cuaToi = anh.luotCua === this.sid;
-    if (anh.giaiDoan !== "quyet" || !cuaToi || anh.hanhDong.length === 0) {
+    // Ba giai đoạn đều chờ người chơi bấm: quyết ở ô vừa dừng, gom tiền để
+    // trả, và chọn ô cho thẻ cơ hội.
+    const dangCho =
+      anh.giaiDoan === "quyet" || anh.giaiDoan === "gom" || anh.giaiDoan === "chon";
+    if (!dangCho || !cuaToi || anh.hanhDong.length === 0) {
       ap.classList.remove("show");
       window.setTimeout(() => { if (!ap.classList.contains("show")) ap.hidden = true; }, 220);
       if (this.boDemTimer) { clearInterval(this.boDemTimer); this.boDemTimer = undefined; }
       return;
     }
 
+    const gom = anh.giaiDoan === "gom";
+    const chon = anh.giaiDoan === "chon";
     const i = anh.oChoQuyet;
     const o = BAN_CO[i];
-    $("apBand").style.background = o ? mauCuaO(o) : "#888";
-    $("apGroup").textContent = o?.loai === "dat" ? NHOM[o.nhom!].ten.toUpperCase() : o ? tenLoaiO(o) : "";
-    $("apName").textContent = o?.ten ?? "";
+    const tt = anh.o[i];
+
+    const tieuDe = gom ? "THIẾU TIỀN MẶT" : chon ? "THẺ CƠ HỘI" : null;
+    $("apBand").style.background = gom ? "#d9534f" : chon ? "#ff8a3d" : o ? mauCuaO(o) : "#888";
+    $("apGroup").textContent = tieuDe
+      ?? (o?.loai === "dat" ? NHOM[o.nhom!].ten.toUpperCase() : o ? tenLoaiO(o) : "");
+    $("apName").textContent = gom
+      ? "Bán bớt tài sản"
+      : chon
+        ? this.tenKieuChon(anh.kieuChon)
+        : o?.ten ?? "";
     $("apMsg").className = "msg";
     $("apMsg").textContent = anh.thongBao;
 
-    // bảng thuê bốn mức
+    // Bảng thuê theo bậc, chỉ có nghĩa với ô đất.
     const rent = $("apRent");
-    if (o?.loai === "dat") {
+    if (!gom && !chon && o?.loai === "dat") {
       const b = bangThue(o.gia!);
       rent.hidden = false;
-      rent.innerHTML = [["Đất trống", b[0]], ["Trọn bộ", b[0] * 2], ["3 nhà", b[3]], ["Khách sạn", b[5]]]
-        .map(([t, v]) => `<div><em>${t}</em><b>${v}K</b></div>`).join("");
+      rent.innerHTML = [
+        ["Mua đất", b[0]], ["Trọn bộ", b[0] * 2], ["3 nhà", b[3]], ["Khách sạn", b[4]],
+      ].map(([t, v]) => `<div><em>${t}</em><b>${v}K</b></div>`).join("");
     } else {
       rent.hidden = true;
     }
 
-    // giá hoặc tiền phải trả
+    // Con số lớn bên cạnh: giá mua, giá mua đứt, tiền thuê, giá xây, hay số
+    // tiền còn thiếu.
     const price = $("apPrice");
-    if (anh.hanhDong.includes("mua") && o) {
+    if (gom) {
+      price.innerHTML = `<b>${dinhDang(anh.tienCanGom)}</b><span>Cần gom</span>`;
+    } else if (anh.hanhDong.includes("mua") && o) {
       price.innerHTML = `<b>${o.gia}K</b><span>Giá mua</span>`;
+    } else if (anh.hanhDong.includes("muadut") && o && tt) {
+      price.innerHTML = `<b>${dinhDang(giaMuaDut(o, tt))}</b><span>Giá mua đứt</span>`;
     } else if (anh.tienPhaiTra > 0) {
-      price.innerHTML = `<b>${dinhDang(anh.tienPhaiTra)}</b><span>Tiền thuê</span>`;
+      price.innerHTML = `<b>${dinhDang(anh.tienPhaiTra)}</b><span>Đã trả thuê</span>`;
     } else if (anh.hanhDong.includes("xay") && o) {
       price.innerHTML = `<b>${Math.round(giaXay(o) / DON_VI)}K</b><span>Giá xây</span>`;
     } else {
@@ -341,25 +370,62 @@ export class Hud {
 
     const btns = $("apBtns");
     btns.innerHTML = "";
-    const them = (nhan: string, loai: "pri" | "gh", hd: string) => {
+    const them = (nhan: string, loai: "pri" | "gh", chay: () => void) => {
       const b = document.createElement("button");
       b.type = "button";
       b.className = `btn ${loai}`;
       b.textContent = nhan;
-      b.addEventListener("click", () => (hd === "xay" ? this.cb.onXay(i) : this.cb.onHanhDong(hd)));
+      b.addEventListener("click", chay);
       btns.appendChild(b);
     };
-    if (anh.hanhDong.includes("mua")) them(`MUA ${o!.gia}K`, "pri", "mua");
-    if (anh.hanhDong.includes("tra")) them(`TRẢ ${dinhDang(anh.tienPhaiTra)}`, "pri", "tra");
-    if (anh.hanhDong.includes("xay")) them("XÂY NHÀ", "pri", "xay");
-    if (anh.hanhDong.includes("boqua")) them("Bỏ qua", "gh", "boqua");
-    if (anh.hanhDong.includes("tieptuc")) {
-      them("Tiếp tục", anh.hanhDong.length === 1 ? "pri" : "gh", "tieptuc");
+
+    if (chon) {
+      // Mỗi ô hợp lệ thành một nút, không cần người chơi mò trên bàn cờ.
+      for (const k of anh.oChonDuoc) {
+        const ox = BAN_CO[k];
+        if (!ox) continue;
+        const bac = anh.o[k]?.nha ?? 0;
+        const mo = bac >= BAC_KHACH_SAN ? " · khách sạn" : bac > 0 ? ` · ${bac} nhà` : "";
+        them(`${ox.ten}${mo}`, "pri", () => this.cb.onChon(k));
+      }
+    } else if (gom) {
+      // Danh sách ô bán được của chính mình, kèm số tiền thu về mỗi lần bấm.
+      const docO = (k: number) => anh.o[k];
+      for (const ox of BAN_CO) {
+        const kq = coTheBan(docO, ox.i, this.sid, anh.nhaConLai);
+        if (!kq.ok || kq.thuVe === undefined) continue;
+        const viec = kq.viec === "khachsan" ? "bán khách sạn"
+          : kq.viec === "nha" ? "bán 1 nhà" : "thế chấp";
+        them(`${ox.ten}: ${viec} +${dinhDang(kq.thuVe)}`, "gh", () => this.cb.onBan(ox.i));
+      }
+      them("Để server tự bán", "pri", () => this.cb.onHanhDong("tudong"));
+    } else {
+      if (anh.hanhDong.includes("mua")) {
+        them(`MUA ${o!.gia}K`, "pri", () => this.cb.onHanhDong("mua"));
+      }
+      if (anh.hanhDong.includes("muadut") && o && tt) {
+        them(`MUA ĐỨT ${dinhDang(giaMuaDut(o, tt))}`, "pri", () => this.cb.onHanhDong("muadut"));
+      }
+      if (anh.hanhDong.includes("xay")) them("XÂY NHÀ", "pri", () => this.cb.onXay(i));
+      if (anh.hanhDong.includes("boqua")) them("Bỏ qua", "gh", () => this.cb.onHanhDong("boqua"));
+      if (anh.hanhDong.includes("tieptuc")) {
+        them("Tiếp tục", anh.hanhDong.length === 1 ? "pri" : "gh", () => this.cb.onHanhDong("tieptuc"));
+      }
     }
 
     ap.hidden = false;
     requestAnimationFrame(() => ap.classList.add("show"));
-    this.chayDongHo(`${anh.luotCua}|${anh.oChoQuyet}|${anh.hanLuot}`);
+    this.chayDongHo(`${anh.giaiDoan}|${anh.luotCua}|${anh.oChoQuyet}|${anh.hanLuot}`);
+  }
+
+  private tenKieuChon(kieu: string): string {
+    switch (kieu) {
+      case "phaBo":   return "Chọn ô để phá bỏ";
+      case "haBac":   return "Chọn ô để hạ một bậc";
+      case "matDien": return "Chọn ô để cắt điện";
+      case "tangO":   return "Chọn ô của bạn để tặng";
+      default:        return "Chọn một ô";
+    }
   }
 
   /**
@@ -397,8 +463,12 @@ export class Hud {
     $("ktTitle").textContent = thang
       ? (thang.sid === this.sid ? "Bạn thắng!" : `${thang.ten} thắng!`)
       : "Ván kết thúc";
+    const vi =
+      anh.lyDoThang === "bien" ? `gom đủ toàn bộ ${SO_BIEN} ô biển`
+      : anh.lyDoThang === "nhom" ? `sở hữu trọn ${SO_NHOM_THANG} nhóm đất`
+      : "là người cuối cùng còn trụ lại";
     $("ktSub").textContent = thang
-      ? `${thang.ten} là người cuối cùng còn trụ lại với ${dinhDang(thang.tien)}.`
+      ? `${thang.ten} ${vi}, kết ván với ${dinhDang(thang.tien)}.`
       : "Không còn ai trụ lại.";
     el.hidden = false;
   }
@@ -423,21 +493,18 @@ export class Hud {
     if (o.loai === "dat") {
       const b = bangThue(o.gia!);
       rows.push(["Giá mua", `${o.gia}K`]);
-      rows.push(["Thuê (đất trống)", `${b[0]}K`]);
+      rows.push(["Thuê (mới cắm cờ)", `${b[0]}K`]);
       rows.push(["Trọn nhóm, chưa xây", `${b[0] * 2}K`]);
-      (["1 nhà", "2 nhà", "3 nhà", "4 nhà"] as const).forEach((t, k) => rows.push([t, `${b[k + 1]}K`]));
-      rows.push(["Khách sạn", `${b[5]}K`]);
-      rows.push(["Giá xây mỗi nhà", `${Math.round(giaXay(o) / DON_VI)}K`]);
+      (["1 nhà", "2 nhà", "3 nhà"] as const).forEach((t, k) => rows.push([t, `${b[k + 1]}K`]));
+      rows.push(["Khách sạn", `${b[BAC_KHACH_SAN]}K`]);
+      rows.push(["Giá xây mỗi bậc", `${Math.round(giaXay(o) / DON_VI)}K`]);
       rows.push(["Thế chấp", `${Math.round(giaTheChap(o) / DON_VI)}K`]);
     } else if (o.loai === "bien") {
       rows.push(["Giá mua", `${o.gia}K`]);
-      [25, 50, 100, 200].forEach((v, k) => rows.push([`Sở hữu ${k + 1} ô biển`, `${v}K`]));
-    } else if (o.loai === "tienich") {
-      rows.push(["Giá mua", `${o.gia}K`]);
-      rows.push(["Sở hữu 1 tiện ích", "Điểm xúc xắc ×4"]);
-      rows.push(["Sở hữu cả 2", "Điểm xúc xắc ×10"]);
+      bangThueBien().forEach((v, k) => rows.push([`Sở hữu ${k + 1} ô biển`, `${v}K`]));
+      rows.push([`Sở hữu cả ${SO_BIEN} ô biển`, "Thắng ngay"]);
     } else if (o.loai === "thue") {
-      rows.push(["Phải nộp", `${o.thue}K`]);
+      rows.push(["Phải nộp", `10% tài sản, tối đa ${o.thue}K`]);
     } else {
       rows.push(["Loại ô", tenLoaiO(o)]);
     }
@@ -445,21 +512,43 @@ export class Hud {
     if (tt?.chu) {
       const chu = anh?.nguoiChoi.find((p) => p.sid === tt.chu);
       rows.push(["Chủ sở hữu", chu ? chu.ten : "?"]);
-      if (tt.nha) rows.push(["Đã xây", tt.nha >= 5 ? "1 khách sạn" : `${tt.nha} nhà`]);
+      rows.push([
+        "Bậc công trình",
+        tt.nha >= BAC_KHACH_SAN ? "Khách sạn" : tt.nha > 0 ? `${tt.nha} nhà` : "Mới cắm cờ",
+      ]);
+      if (tt.chu !== this.sid) {
+        rows.push([
+          "Giá mua đứt",
+          tt.theChap || tt.nha >= BAC_KHACH_SAN ? "Không mua đứt được" : dinhDang(giaMuaDut(o, tt)),
+        ]);
+      }
       if (tt.theChap) rows.push(["Tình trạng", "Đang thế chấp"]);
-    } else if (o.loai === "dat" || o.loai === "bien" || o.loai === "tienich") {
+      if (tt.matDien > 0) rows.push(["Tình trạng", `Mất điện ${tt.matDien} lượt nữa`]);
+    } else if (o.loai === "dat" || o.loai === "bien") {
       rows.push(["Chủ sở hữu", "Chưa ai mua"]);
     }
 
     $("tcTable").innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
 
-    // Nút xây nhanh khi đó là đất của mình và đang tới lượt mình.
+    // Nút nhanh khi đó là ô của mình: xây thêm bậc, hoặc bán bớt để xoay tiền.
     const nutXay = $("tcXay") as HTMLButtonElement;
-    const cuaToi = tt?.chu === this.sid && o.loai === "dat";
-    nutXay.hidden = !cuaToi;
-    if (cuaToi) {
-      nutXay.textContent = `Xây nhà ở đây (${Math.round(giaXay(o) / DON_VI)}K)`;
+    const cuaToi = tt?.chu === this.sid;
+    nutXay.hidden = !(cuaToi && o.loai === "dat");
+    if (cuaToi && o.loai === "dat") {
+      nutXay.textContent = `Xây thêm một bậc (${Math.round(giaXay(o) / DON_VI)}K)`;
       nutXay.onclick = () => { this.cb.onXay(i); this.dongTheO(); };
+    }
+
+    const nutBan = $("tcBan") as HTMLButtonElement;
+    const kqBan = cuaToi && anh
+      ? coTheBan((k: number) => anh.o[k], i, this.sid, anh.nhaConLai)
+      : undefined;
+    nutBan.hidden = !kqBan?.ok;
+    if (kqBan?.ok && kqBan.thuVe !== undefined) {
+      const viec = kqBan.viec === "khachsan" ? "Bán khách sạn"
+        : kqBan.viec === "nha" ? "Bán một nhà" : "Thế chấp ô này";
+      nutBan.textContent = `${viec} (+${dinhDang(kqBan.thuVe)})`;
+      nutBan.onclick = () => { this.cb.onBan(i); this.dongTheO(); };
     }
 
     const el = $("tilecard");

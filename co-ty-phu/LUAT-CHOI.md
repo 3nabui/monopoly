@@ -12,9 +12,13 @@ dấu vào đây rồi đưa lại, tôi sẽ sửa mã cho khớp.
 | --- | --- |
 | Tên ô, giá đất, thứ tự ô trên bàn | `apps/shared/src/board.ts` |
 | Tiền ban đầu, lương, tiền ra đảo, số nhà trong hộp | `apps/shared/src/board.ts` |
-| Công thức tiền thuê, giá xây, giá thế chấp | `apps/shared/src/rules.ts` |
-| Nội dung thẻ Cơ hội và Khí vận | `apps/shared/src/the.ts` |
+| Tiền thuê, giá xây, giá mua đứt, điều kiện thắng | `apps/shared/src/rules.ts` |
+| Nội dung thẻ Cơ hội | `apps/shared/src/the.ts` |
 | Thời gian mỗi lượt, số người tối đa | `apps/backend/src/rooms/CoTyPhuRoom.ts` |
+
+Mấy con số hay phải chỉnh nhất đã gom thành hằng số đặt tên sẵn ở đầu
+`rules.ts`: `HE_SO_MUA_DUT`, `SO_NHOM_THANG`, `BAC_TOI_DA_VONG_DAU`,
+`LUOT_MAT_DIEN`, `BAC_KHACH_SAN`.
 
 Sửa xong chạy lại `npm run dev:server`. Nếu sửa trong `apps/shared` thì chạy
 `npm run build:shared` trước.
@@ -27,86 +31,113 @@ Sửa xong chạy lại `npm run dev:server`. Nếu sửa trong `apps/shared` th
 - Hộp cờ có **32 nhà** và **12 khách sạn**. Đây là giới hạn thật: hết nhà thì
   phải chờ người khác bán ra.
 
-## Bàn cờ 36 ô
+## Bàn cờ 32 ô
+
+Bốn ô góc nằm ở vị trí 0, 8, 16, 24; mỗi cạnh có 7 ô thường nằm giữa hai góc.
 
 | Ô | Tên | Nhóm | Giá |
 | --- | --- | --- | --- |
 | 0 | XUẤT PHÁT | góc | — |
 | 1 | Đồng Văn | Hà Giang | 60K |
-| 2 | KHÍ VẬN | thẻ | — |
-| 3 | Mèo Vạc | Hà Giang | 60K |
-| 4 | THUẾ THU NHẬP | thuế | nộp 200K hoặc 10% tài sản |
-| 5 | Biển Hạ Long | ô biển | 200K |
-| 6 | Bắc Hà | Lào Cai | 100K |
-| 7 | CƠ HỘI | thẻ | — |
-| 8 | Sa Pa | Lào Cai | 120K |
-| 9 | ĐẢO HOANG | góc | — |
-| 10 | Tam Cốc | Ninh Bình | 140K |
-| 11 | NHÀ MÁY ĐIỆN | tiện ích | 150K |
-| 12 | Tràng An | Ninh Bình | 160K |
-| 13 | CƠ HỘI | thẻ | — |
-| 14 | Biển Đà Nẵng | ô biển | 200K |
-| 15 | Thiên Mụ | Thừa Thiên Huế | 180K |
-| 16 | KHÍ VẬN | thẻ | — |
-| 17 | Đại Nội | Thừa Thiên Huế | 200K |
-| 18 | LỄ HỘI TOÀN QUỐC | góc | — |
-| 19 | Mỹ Sơn | Quảng Nam | 220K |
+| 2 | Mèo Vạc | Hà Giang | 60K |
+| 3 | Lũng Cú | Hà Giang | 80K |
+| 4 | Biển Hạ Long | ô biển | 200K |
+| 5 | Bắc Hà | Lào Cai | 100K |
+| 6 | Bát Xát | Lào Cai | 100K |
+| 7 | Sa Pa | Lào Cai | 120K |
+| 8 | ĐẢO HOANG | góc | — |
+| 9 | Tam Cốc | Ninh Bình | 140K |
+| 10 | Hoa Lư | Ninh Bình | 140K |
+| 11 | Tràng An | Ninh Bình | 160K |
+| 12 | CƠ HỘI | thẻ | — |
+| 13 | Thiên Mụ | Thừa Thiên Huế | 180K |
+| 14 | Đại Nội | Thừa Thiên Huế | 180K |
+| 15 | Quốc Học Huế | Thừa Thiên Huế | 200K |
+| 16 | LỄ HỘI TOÀN QUỐC | góc | — |
+| 17 | Mỹ Sơn | Quảng Nam | 220K |
+| 18 | Biển Nha Trang | ô biển | 200K |
+| 19 | Hội An | Quảng Nam | 240K |
 | 20 | CƠ HỘI | thẻ | — |
-| 21 | Hội An | Quảng Nam | 240K |
-| 22 | Biển Nha Trang | ô biển | 200K |
-| 23 | Bảo Lộc | Lâm Đồng | 260K |
-| 24 | CƠ HỘI | thẻ | — |
-| 25 | Đà Lạt | Lâm Đồng | 280K |
-| 26 | NHÀ MÁY NƯỚC | tiện ích | 150K |
-| 27 | DU LỊCH XUYÊN VIỆT | góc | — |
-| 28 | Thủ Thiêm | TP. Hồ Chí Minh | 300K |
-| 29 | KHÍ VẬN | thẻ | — |
-| 30 | Bến Thành | TP. Hồ Chí Minh | 320K |
-| 31 | Biển Phú Quốc | ô biển | 200K |
-| 32 | THUẾ XA XỈ | thuế | nộp 100K |
-| 33 | Ba Đình | Hà Nội | 350K |
-| 34 | CƠ HỘI | thẻ | — |
-| 35 | Hoàn Kiếm | Hà Nội | 400K |
+| 21 | Bảo Lộc | Lâm Đồng | 260K |
+| 22 | Đà Lạt | Lâm Đồng | 280K |
+| 23 | Đức Trọng | Lâm Đồng | 260K |
+| 24 | DU LỊCH XUYÊN VIỆT | góc | — |
+| 25 | Biển Phú Quốc | ô biển | 200K |
+| 26 | Thủ Thiêm | TP. Hồ Chí Minh | 300K |
+| 27 | Bến Thành | TP. Hồ Chí Minh | 320K |
+| 28 | CƠ HỘI | thẻ | — |
+| 29 | Ba Đình | Hà Nội | 350K |
+| 30 | ĐÓNG THUẾ | thuế | 10% tài sản, tối đa 200K |
+| 31 | Hoàn Kiếm | Hà Nội | 400K |
+
+Tám nhóm đất: Hà Giang, Lào Cai, Ninh Bình, Thừa Thiên Huế mỗi nhóm 3 ô;
+Lâm Đồng 3 ô; Quảng Nam, TP. Hồ Chí Minh, Hà Nội mỗi nhóm 2 ô. Tổng 21 ô đất.
 
 Số ô ở cột đầu chính là số dùng trong thẻ `diToi`.
+
+> **Cần anh/chị quyết:** luật "sở hữu 4 ô biển là thắng" nhưng bố cục chỉ có
+> **3 ô biển** (Hạ Long, Nha Trang, Phú Quốc). Hiện game lấy điều kiện là
+> **gom đủ toàn bộ ô biển đang có trên bàn, tức 3 ô**. Muốn đúng 4 thì phải
+> đổi một ô đang có thành ô biển — ví dụ biến ô 10 Hoa Lư thành Biển Đà Nẵng,
+> khi đó Ninh Bình còn 2 ô. Anh/chị chọn ô nào thì tôi đổi.
 
 ## Một lượt chơi
 
 1. Tung hai xúc xắc, đi số ô bằng tổng điểm.
-2. Xử lý ô vừa dừng (mua, trả thuê, rút thẻ, nộp thuế…).
+2. Xử lý ô vừa dừng (mua, trả thuê, mua đứt, rút thẻ, nộp thuế…).
 3. Tung ra **đôi** thì được đi thêm một lượt. **Đôi ba lần liên tiếp** thì vào
    Đảo Hoang ngay, không đi theo lần đôi thứ ba.
 
-Mỗi lượt có đồng hồ: **30 giây** để tung, **25 giây** để quyết định. Hết giờ
-server tự quyết thay — tự trả tiền thuê, tự bỏ qua ô chưa mua.
+Mỗi lượt có đồng hồ: **30 giây** để tung, **25 giây** cho mọi quyết định
+(mua, mua đứt, xây, bán gom tiền, chọn ô cho thẻ). Hết giờ server tự quyết
+thay, không ai bị treo ván vì người khác rời máy.
 
-Đi qua hoặc dừng đúng ô Xuất phát đều nhận **200K**. Bị đưa thẳng vào Đảo
-Hoang thì không nhận.
+Đi qua hoặc dừng đúng ô Xuất phát đều nhận **200K**, và tính là sang vòng mới.
 
 ## Mua đất
 
 Dừng ở ô chưa có chủ thì được mua đúng giá in trên bàn. Không mua thì ô đó
 vẫn trống.
 
-> **Chưa làm:** luật đấu giá. Trong cờ tỷ phú thật, người từ chối mua thì ô
-> được đưa ra đấu giá cho cả bàn, giá khởi điểm có thể thấp tuỳ ý. Thiếu luật
-> này thì đất lâu hết, không ai trọn nhóm được, và ván kéo dài. Đây là việc
-> đáng làm tiếp nhất.
+Ô vừa mua chưa có nhà nào — trên bàn 3D nó được **cắm một lá cờ** màu người
+chơi. Đó là bậc 0 của thang công trình.
+
+## Thang công trình
+
+Năm bậc, thay cho thang sáu bậc của cờ tỷ phú cổ điển:
+
+```
+mua đất (cắm cờ) → 1 nhà → 2 nhà → 3 nhà → khách sạn
+```
+
+Điều kiện xây: sở hữu **trọn nhóm**, không ô nào trong nhóm đang thế chấp, và
+tuân thủ **luật xây đều** — số nhà giữa hai ô bất kỳ trong nhóm không lệch
+nhau quá 1.
+
+Giá xây mỗi bậc bằng khoảng 1/4 giá mua, làm tròn tới bội số của 5K. Lên
+khách sạn thì trả 3 nhà về hộp và lấy ra 1 khách sạn.
+
+**Luật vòng đầu:** tính từ ô Xuất phát, người chơi ở **vòng thứ nhất không
+được xây tới bậc 3 nhà** ở bất cứ ô nào — tối đa 2 nhà. Qua ô Xuất phát là
+sang vòng 2, hết hạn chế. Luật này giữ cho người đi sau không bị bỏ xa ngay
+từ đầu ván.
+
+Bán một bậc lại cho nhà băng chỉ được **nửa giá xây**.
 
 ## Tiền thuê
 
-Chủ đất thu tiền khi có người dừng lại. Đang thế chấp thì không thu được gì.
+Chủ đất thu tiền khi có người dừng lại. Đang thế chấp hoặc đang mất điện thì
+không thu được gì.
 
 ### Ô đất
 
-| Tình trạng | Tiền thuê |
+| Bậc | Tiền thuê |
 | --- | --- |
-| Đất lẻ, chưa trọn nhóm | mức cơ bản |
-| Trọn cả nhóm, chưa xây nhà | **gấp đôi** mức cơ bản |
+| Mua đất, chưa trọn nhóm | mức cơ bản |
+| Mua đất, đã trọn cả nhóm | **gấp đôi** mức cơ bản |
 | 1 nhà | 5× cơ bản |
 | 2 nhà | 15× cơ bản |
 | 3 nhà | 45× cơ bản |
-| 4 nhà | 80× cơ bản |
 | Khách sạn | 125× cơ bản |
 
 Mức cơ bản bằng **1/10 giá mua**. Ví dụ Hoàn Kiếm 400K thì cơ bản 40K, trọn
@@ -114,87 +145,131 @@ nhóm 80K, ba nhà 1.800K, khách sạn 5.000K.
 
 ### Ô biển
 
-Tính theo số ô biển người đó sở hữu, không phụ thuộc ô nào:
-
 | Số ô biển | Tiền thuê |
 | --- | --- |
 | 1 | 25K |
-| 2 | 50K |
-| 3 | 100K |
-| 4 | 200K |
+| 2 | 60K |
+| 3 | 150K |
 
-### Ô tiện ích
+Mức thứ ba gần như không bao giờ thu được: gom đủ cả ba ô biển là thắng ngay,
+ván dừng tại đó.
 
-- Sở hữu 1 ô: điểm xúc xắc **× 4**
-- Sở hữu cả 2 ô: điểm xúc xắc **× 10**
+## Mua đứt ô của người khác
 
-## Xây nhà
+Dừng vào ô đã có chủ thì **tiền thuê bị trừ ngay, không có nút từ chối**. Sau
+khi trả xong, người chơi được chọn **mua đứt** ô đó hoặc **bỏ qua**.
 
-Điều kiện: sở hữu **trọn nhóm**, không ô nào trong nhóm đang thế chấp, và
-tuân thủ **luật xây đều** — số nhà giữa hai ô bất kỳ trong nhóm không lệch
-nhau quá 1.
+**Giá mua đứt = 2 × (giá mua ô + tổng tiền đã xây trên ô).**
 
-Giá xây mỗi căn bằng khoảng 1/4 giá mua, làm tròn tới bội số của 5K. Bốn nhà
-rồi thì nâng lên khách sạn, trả 4 nhà về hộp.
+Toàn bộ số tiền đó trả thẳng cho chủ cũ, nhà băng không lấy đồng nào. Nhà cửa
+trên ô đổi chủ theo, không bị phá.
 
-Bán nhà lại cho nhà băng chỉ được **nửa giá xây**.
+Ví dụ: Hoàn Kiếm giá 400K, giá xây 100K mỗi bậc.
+
+| Tình trạng ô | Giá mua đứt |
+| --- | --- |
+| Mới cắm cờ | 800K |
+| 1 nhà | 1.000K |
+| 2 nhà | 1.200K |
+| 3 nhà | 1.400K |
+| Khách sạn | **không mua đứt được** |
+
+Hai trường hợp không mua đứt được:
+
+- Ô **đã lên khách sạn** — đó là phần thưởng cho người dám xây tới bậc cuối.
+- Ô **đang thế chấp**.
+
+Hệ số 2 nằm ở `HE_SO_MUA_DUT` trong `rules.ts`. Nâng lên 3 thì mua đứt hiếm
+hơn hẳn và chủ đất an toàn hơn.
+
+## Thắng ván
+
+Ba cách, kiểm tra ngay sau mỗi lần một ô đổi chủ:
+
+1. **Gom đủ toàn bộ ô biển** (hiện là 3 ô) — thắng ngay.
+2. **Sở hữu trọn 3 nhóm đất** — thắng ngay.
+3. **Là người cuối cùng chưa phá sản.**
 
 ## Đảo Hoang
 
 Ba cách vào: dừng ở ô Đảo Hoang không phải do ghé thăm, rút thẻ "vào Đảo
 Hoang", hoặc tung đôi ba lần liên tiếp.
 
-Ba cách ra: tung được đôi, hoặc sau **3 lượt** thì buộc nộp **50K**.
+Hai cách ra: tung được đôi, hoặc sau **3 lượt** thì buộc nộp **50K**.
 
 Ở trong đảo vẫn thu tiền thuê và xây nhà bình thường, chỉ mất quyền di chuyển.
 
 ## Thiếu tiền và phá sản
 
-Không đủ tiền mặt thì server **tự bán nhà rồi thế chấp đất** để gom đủ. Vẫn
-không đủ thì phá sản: tài sản trả hết về thị trường và người đó rời cuộc chơi.
+Không đủ tiền mặt để trả một khoản bắt buộc thì ván **dừng lại chờ người
+chơi**: bảng hiện danh sách ô của họ kèm số tiền thu về nếu bán, họ bấm từng ô
+cho tới khi đủ. Bán theo bậc — khách sạn hạ về 3 nhà, nhà hạ một căn, hết nhà
+thì thế chấp cả ô.
 
-> **Chưa làm:** thế chấp và bán nhà thủ công. Hiện người chơi không tự chọn
-> bán gì, server tự quyết theo thứ tự ô trên bàn.
+Ai không muốn chọn thì bấm **"Để server tự bán"**, hoặc cứ để hết 25 giây,
+server bán thay theo thứ tự ô trên bàn.
 
-Người cuối cùng còn trụ lại là người thắng.
+Ngoài lúc bị ép, người chơi còn **bán chủ động bất cứ lúc nào tới lượt mình**:
+bấm vào ô của mình trên bàn cờ rồi chọn nút bán trong thẻ thông tin.
+
+Bán hết vẫn không đủ thì phá sản: tài sản trả hết về thị trường, người đó rời
+cuộc chơi, chủ nợ nhận nốt phần tiền còn lại.
+
+> **Chưa dừng chờ chọn ô ở hai chỗ:** thẻ "trả mỗi người" và tiền ra Đảo
+> Hoang vẫn để server tự bán, vì hai khoản này chạy theo vòng lặp. Thuê, thuế
+> và các thẻ nộp tiền một lần thì đều có bước chọn.
 
 ## Thẻ Cơ hội
 
-Ô số 7, 13, 20, 24, 34. Mười thẻ, trộn riêng, rút xong xuống đáy bộ.
+Ô số 12, 20, 28. Mười sáu thẻ, trộn khi mở phòng, rút xong xuống đáy bộ.
+Không còn bộ Khí vận.
 
 | Nội dung | Hiệu ứng |
 | --- | --- |
 | Trúng thầu dự án ven biển, nhận 150K. | nhận 150K |
+| Hoàn thuế cuối năm, nhận 200K. | nhận 200K |
+| Khách du lịch đông bất ngờ, nhận 100K. | nhận 100K |
 | Đi thẳng về ô Xuất phát và nhận lương. | đi tới ô 0 |
+| Đi thẳng tới Biển Nha Trang. | đi tới ô 18 |
 | Lạc đường trên đèo, lùi lại 3 ô. | lùi 3 ô |
 | Vi phạm quy hoạch, vào Đảo Hoang. | vào Đảo Hoang |
-| Khách du lịch đông bất ngờ, nhận 100K. | nhận 100K |
 | Chi phí quảng bá du lịch, nộp 80K. | nộp 80K |
-| Bạn thắng cuộc thi khởi nghiệp, mỗi người trả bạn 50K. | thu 50K mỗi người |
-| Đi thẳng tới Biển Nha Trang. | đi tới ô 22 |
-| Bảo trì toàn bộ bất động sản: 25K mỗi nhà, 100K mỗi khách sạn. | sửa nhà |
-| Cổ tức quỹ đầu tư, nhận 50K. | nhận 50K |
-
-## Thẻ Khí vận
-
-Ô số 2, 16, 29. Mười thẻ, trộn riêng.
-
-| Nội dung | Hiệu ứng |
-| --- | --- |
-| Hoàn thuế cuối năm, nhận 200K. | nhận 200K |
-| Viện phí sau chuyến leo núi, nộp 100K. | nộp 100K |
-| Mừng khai trương, mỗi người trả bạn 30K. | thu 30K mỗi người |
-| Khao cả bàn một chầu, trả mỗi người 40K. | trả 40K mỗi người |
-| Bán lô đất cũ, nhận 120K. | nhận 120K |
 | Phạt xây dựng sai phép, nộp 150K. | nộp 150K |
-| Đi thẳng tới Hội An. | đi tới ô 21 |
-| Trốn thuế bị phát hiện, vào Đảo Hoang. | vào Đảo Hoang |
-| Tiền thưởng cuối quý, nhận 80K. | nhận 80K |
-| Sửa chữa sau bão: 20K mỗi nhà, 75K mỗi khách sạn. | sửa nhà |
+| Bạn thắng cuộc thi khởi nghiệp, mỗi người trả bạn 50K. | thu 50K mỗi người |
+| Khao cả bàn một chầu, trả mỗi người 40K. | trả 40K mỗi người |
+| Bảo trì bất động sản: 25K mỗi nhà, 100K mỗi khách sạn. | sửa nhà |
+| **Giải toả mặt bằng:** chọn một ô của người khác để phá bỏ, ô đó thành vô chủ. | chọn ô |
+| **Thanh tra xây dựng:** chọn một ô của người khác để hạ một bậc công trình. | chọn ô |
+| **Sự cố lưới điện:** chọn một ô của người khác, ô đó mất điện 5 lượt tung. | chọn ô |
+| **Làm từ thiện:** chọn một ô của bạn để tặng người chơi kế tiếp. | chọn ô |
+
+### Bốn thẻ tương tác
+
+Rút trúng một trong bốn thẻ này thì ván dừng lại, bảng hiện danh sách ô hợp lệ
+dưới dạng nút bấm, người chơi chọn một ô (hoặc bấm thẳng vào ô trên bàn cờ).
+Hết 25 giây thì server chọn thay.
+
+| Thẻ | Nhắm vào | Không nhắm được |
+| --- | --- | --- |
+| Giải toả mặt bằng | ô đất của người khác | ô đã có khách sạn |
+| Thanh tra xây dựng | ô đất của người khác đã có 1–3 nhà | ô khách sạn, ô chưa xây |
+| Sự cố lưới điện | ô đất của người khác | ô đang mất điện sẵn |
+| Làm từ thiện | ô đất của chính mình | — |
+
+Ba điểm cần anh/chị biết vì tôi phải tự quyết:
+
+- **Cả bốn thẻ chỉ nhắm vào ô đất, không đụng tới ô biển.** Anh/chị viết "ô
+  đất" nên tôi hiểu theo nghĩa hẹp. Muốn cho phép đánh cả ô biển thì nói,
+  đó cũng là cách duy nhất để chặn một người gom biển thắng nhanh.
+- **"Tặng cho người khác" hiện là tặng cho người ngồi kế tiếp** theo thứ tự
+  đi. Bàn 2 người thì không có gì để bàn; bàn 3–4 người, muốn người rút được
+  tự chọn tặng ai thì phải thêm một bước chọn nữa.
+- **Mất điện đếm theo lượt tung của cả bàn**, không phải lượt riêng của chủ ô.
+  5 lượt tung với bàn 2 người là khoảng 2 vòng rưỡi.
 
 ### Các kiểu hiệu ứng viết được
 
-Khi thêm thẻ mới trong `apps/shared/src/the.ts`, chọn một trong tám kiểu:
+Khi thêm thẻ mới trong `apps/shared/src/the.ts`, chọn một trong chín kiểu:
 
 | Kiểu | Viết | Ý nghĩa |
 | --- | --- | --- |
@@ -202,10 +277,11 @@ Khi thêm thẻ mới trong `apps/shared/src/the.ts`, chọn một trong tám ki
 | `nop` | `{ loai: "nop", so: 80 }` | Người rút trả cho nhà băng |
 | `thuMoiNguoi` | `{ loai: "thuMoiNguoi", so: 50 }` | Mỗi người khác trả cho người rút |
 | `traMoiNguoi` | `{ loai: "traMoiNguoi", so: 40 }` | Người rút trả cho từng người khác |
-| `diToi` | `{ loai: "diToi", o: 22 }` | Đi tới ô số 22, nhận lương nếu qua Xuất phát |
+| `diToi` | `{ loai: "diToi", o: 18 }` | Đi tới ô số 18, nhận lương nếu qua Xuất phát |
 | `vaoDao` | `{ loai: "vaoDao" }` | Vào Đảo Hoang, không nhận lương |
 | `luiLai` | `{ loai: "luiLai", so: 3 }` | Lùi lại 3 ô |
 | `suaNha` | `{ loai: "suaNha", moiNha: 25, moiKhachSan: 100 }` | Nộp tiền theo số nhà đang có |
+| `chon` | `{ loai: "chon", kieu: "phaBo" }` | Bắt chọn một ô; `kieu` là `phaBo`, `haBac`, `matDien` hoặc `tangO` |
 
 Muốn thêm kiểu hiệu ứng hoàn toàn mới thì cần sửa cả `the.ts` và hàm
 `apDungThe` trong `apps/backend/src/rooms/CoTyPhuRoom.ts` — nhắn tôi.
@@ -214,9 +290,11 @@ Muốn thêm kiểu hiệu ứng hoàn toàn mới thì cần sửa cả `the.ts
 
 Liệt kê để anh/chị biết game đang thiếu gì so với cờ tỷ phú đầy đủ:
 
-- **Đấu giá** khi người dừng chân từ chối mua — quan trọng nhất
-- **Giao dịch giữa người chơi**: đổi đất, bán đất cho nhau
-- **Thế chấp và giải chấp thủ công**
-- **Thẻ "Thoát khỏi Đảo Hoang"** giữ lại dùng sau
-- Luật nhà tuỳ chọn: gom thuế vào Bãi đỗ xe, nhận gấp đôi khi dừng đúng ô
-  Xuất phát
+- **Đấu giá** khi người dừng chân từ chối mua ô chưa có chủ. Giờ đã có mua đứt
+  nên đất không còn bị đóng băng như trước, nhưng đấu giá vẫn làm ván nhanh hơn.
+- **Giao dịch tự do giữa người chơi**: đổi đất, thoả thuận giá. Mua đứt là
+  giao dịch một chiều, không cần chủ cũ đồng ý.
+- **Giải chấp**: thế chấp rồi thì chưa có nút chuộc lại.
+- **Thẻ "Thoát khỏi Đảo Hoang"** giữ lại dùng sau.
+- **Thẻ `diToi` không kích hoạt ô đích**: "Đi thẳng tới Biển Nha Trang" chỉ
+  dời quân, không cho mua và không bắt trả thuê ở ô đó.
