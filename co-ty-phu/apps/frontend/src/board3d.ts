@@ -27,6 +27,17 @@ interface ViTriO {
   goc: boolean;
 }
 
+/**
+ * Đổi số thứ tự ô trong luật chơi thành vị trí vật lý trên bàn.
+ *
+ * Luật chơi đi theo chiều tăng của chỉ số. Nếu đặt thẳng chỉ số lên bàn thì
+ * quân chạy ngược chiều kim đồng hồ khi nhìn từ góc máy cố định. Đảo lại ở đây
+ * để quân đi thuận chiều kim đồng hồ, mà ô Xuất phát vẫn nằm nguyên góc dưới.
+ */
+function viTriVatLy(i: number): number {
+  return (SO_O - i) % SO_O;
+}
+
 function viTriCuaO(i: number): ViTriO {
   const bien = NUA - GOC - RONG / 2;
   if (i === 0)      return { x: TRUC, z: TRUC, ry: 0, ox: 0.7, oz: 0.7, goc: true };
@@ -858,7 +869,8 @@ export class BanCo3D {
     const matO = M(0xffffff, 0.8);
 
     BAN_CO.forEach((o, i) => {
-      const v = viTriCuaO(i);
+      const vt = viTriVatLy(i);
+      const v = viTriCuaO(vt);
       this.viTri.push(v);
       const w = v.goc ? GOC : RONG;
       const d = v.goc ? GOC : SAU;
@@ -872,9 +884,10 @@ export class BanCo3D {
       g.add(than);
       this.oMeshes.push(than);
 
-      // Camera cố định nhìn từ hướng +x +z, nên hai cạnh tây (ô 9–17) và bắc
-      // (ô 18–26) quay lưng lại người xem: nhãn của chúng phải vẽ đảo đầu.
-      const tex = new THREE.CanvasTexture(veNhan(o, v.goc, i >= 9 && i <= 26));
+      // Camera cố định nhìn từ hướng +x +z, nên hai cạnh tây và bắc của bàn
+      // quay lưng lại người xem: nhãn ở đó phải vẽ đảo đầu. Xét theo vị trí
+      // vật lý chứ không theo số thứ tự ô.
+      const tex = new THREE.CanvasTexture(veNhan(o, v.goc, vt >= 9 && vt <= 26));
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
       const nhan = new THREE.Mesh(new THREE.PlaneGeometry(w - 0.26, d - 0.26),
