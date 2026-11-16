@@ -106,9 +106,17 @@ Năm bậc, thay cho thang sáu bậc của cờ tỷ phú cổ điển:
 mua đất (cắm cờ) → 1 nhà → 2 nhà → 3 nhà → khách sạn
 ```
 
-Điều kiện xây: sở hữu **trọn nhóm**, không ô nào trong nhóm đang thế chấp, và
-tuân thủ **luật xây đều** — số nhà giữa hai ô bất kỳ trong nhóm không lệch
-nhau quá 1.
+**Xây tự do.** Ô đất nào của mình cũng xây được — không cần sở hữu trọn nhóm,
+không có luật xây đều, muốn dồn hết nhà vào một ô cũng được. Đây là khác biệt
+lớn nhất so với cờ tỷ phú cổ điển: tiền thuê leo nhanh hơn hẳn và ván ngắn lại.
+
+Chỉ còn bốn thứ chặn lại, và cả bốn đều là ràng buộc vật lý chứ không phải
+điều kiện luật:
+
+- Ô phải là **đất của mình** và **chưa thế chấp**.
+- Ô **chưa lên khách sạn** (đã ở bậc cuối thì thôi).
+- **Hộp cờ còn quân** — 32 nhà và 12 khách sạn là giới hạn thật.
+- **Đủ tiền mặt.**
 
 Giá xây mỗi bậc bằng khoảng 1/4 giá mua, làm tròn tới bội số của 5K. Lên
 khách sạn thì trả 3 nhà về hộp và lấy ra 1 khách sạn.
@@ -138,6 +146,9 @@ không thu được gì.
 
 Mức cơ bản bằng **1/10 giá mua**. Ví dụ Hoàn Kiếm 400K thì cơ bản 40K, trọn
 nhóm 80K, ba nhà 1.800K, khách sạn 5.000K.
+
+Trọn nhóm vẫn được thưởng gấp đôi ở bậc chưa xây, và vẫn là một trong ba cách
+thắng ván — nhưng nó không còn là điều kiện để xây nữa.
 
 ### Ô biển
 
@@ -298,7 +309,8 @@ Liệt kê để anh/chị biết game đang thiếu gì so với cờ tỷ phú
   nên đất không còn bị đóng băng như trước, nhưng đấu giá vẫn làm ván nhanh hơn.
 - **Giao dịch tự do giữa người chơi**: đổi đất, thoả thuận giá. Mua đứt là
   giao dịch một chiều, không cần chủ cũ đồng ý.
-- **Giải chấp**: thế chấp rồi thì chưa có nút chuộc lại.
+- **Giải chấp**: thế chấp rồi thì chưa có nút chuộc lại, nên ô đó cũng không
+  xây tiếp được cho tới hết ván.
 - **Thẻ "Thoát khỏi Đảo Hoang"** giữ lại dùng sau.
 - **Thẻ `diToi` không kích hoạt ô đích**: "Đi thẳng tới Biển Nha Trang" chỉ
   dời quân, không cho mua và không bắt trả thuê ở ô đó.

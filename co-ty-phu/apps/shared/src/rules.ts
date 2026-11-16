@@ -224,8 +224,10 @@ export function tienThueO(o: O, taiSan: number): number {
 /**
  * Có được xây thêm một bậc ở ô i hay không.
  *
- * Kiểm tra: là ô đất của mình, đã trọn nhóm, không ô nào trong nhóm đang thế
- * chấp, luật xây đều, hộp còn nhà, đủ tiền, và luật vòng đầu.
+ * Xây tự do: ô đất nào của mình cũng xây được, không cần trọn nhóm và không
+ * có luật xây đều. Chỉ còn bốn thứ chặn lại, và cả bốn đều là ràng buộc vật
+ * lý chứ không phải điều kiện luật: ô phải là đất của mình và chưa thế chấp,
+ * chưa lên tới khách sạn, hộp cờ còn quân, và trong túi đủ tiền.
  *
  * `soVong` là vòng thứ mấy người chơi đang đi (bắt đầu từ 1). Ở vòng đầu
  * không ai được xây tới bậc 3 nhà — luật này giữ cho người đi sau không bị
@@ -245,24 +247,12 @@ export function coTheXay(
   if (!o || !tt) return { ok: false, lyDo: "Ô không hợp lệ." };
   if (o.loai !== "dat") return { ok: false, lyDo: "Chỉ xây được trên ô đất." };
   if (tt.chu !== chu) return { ok: false, lyDo: "Đây không phải đất của bạn." };
-
-  const trongNhom = BAN_CO.filter((x) => x.nhom === o.nhom);
-  if (!tronBo(doc, o.nhom!, chu)) {
-    return { ok: false, lyDo: "Phải sở hữu cả nhóm mới được xây nhà." };
-  }
-  if (trongNhom.some((x) => doc(x.i)?.theChap)) {
-    return { ok: false, lyDo: "Có ô trong nhóm đang thế chấp." };
-  }
+  if (tt.theChap) return { ok: false, lyDo: "Ô đang thế chấp, không xây được." };
   if (tt.nha >= BAC_KHACH_SAN) {
     return { ok: false, lyDo: "Đã có khách sạn, không xây thêm được." };
   }
   if (soVong <= 1 && tt.nha >= BAC_TOI_DA_VONG_DAU) {
     return { ok: false, lyDo: "Vòng đầu chỉ được xây tới 2 nhà. Qua Xuất phát rồi xây tiếp." };
-  }
-
-  const itNhat = Math.min(...trongNhom.map((x) => doc(x.i)?.nha ?? 0));
-  if (tt.nha > itNhat) {
-    return { ok: false, lyDo: "Luật xây đều: hãy xây ở ô còn ít nhà hơn trước." };
   }
 
   // Nâng từ 3 nhà lên khách sạn thì trả 3 nhà về hộp, chỉ cần 1 khách sạn.

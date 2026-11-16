@@ -311,17 +311,52 @@ describe("Phòng cờ tỷ phú", () => {
     assert.strictEqual(coTheMuaDut(doc, dat.i, "B", giau).ok, false, "\u00f4 \u0111ang th\u1ebf ch\u1ea5p");
   });
 
-  it("vòng đầu không ai được xây tới bậc 3 nhà", () => {
+  it("xây được trên một ô lẻ, không cần trọn nhóm và không phải xây đều", () => {
     const { o: tt, doc } = banTrang();
     const nhom = BAN_CO.filter((x) => x.nhom === "hagiang");
-    for (const x of nhom) { tt[x.i].chu = "A"; tt[x.i].nha = 2; }
+    const tien = 10_000_000;
+
+    // Chỉ sở hữu đúng một ô trong nhóm ba ô.
+    tt[nhom[0].i].chu = "A";
+    assert.strictEqual(
+      coTheXay(doc, nhom[0].i, "A", tien, 32, 12).ok, true,
+      "một ô lẻ vẫn xây được",
+    );
+
+    // Dồn hết nhà vào ô đó trong khi hai ô kia trống: không còn luật xây đều.
+    tt[nhom[0].i].nha = BAC_KHACH_SAN - 1;
+    tt[nhom[1].i].chu = "A";
+    assert.strictEqual(
+      coTheXay(doc, nhom[0].i, "A", tien, 32, 12).ok, true,
+      "lệch bao nhiêu nhà cũng được",
+    );
+
+    // Ô của người khác thì vẫn không đụng vào được.
+    assert.strictEqual(coTheXay(doc, nhom[2].i, "A", tien, 32, 12).ok, false);
+  });
+
+  it("ô đang thế chấp thì không xây được", () => {
+    const { o: tt, doc } = banTrang();
+    const o = timO("Hoàn Kiếm");
+    tt[o.i].chu = "A";
+    tt[o.i].theChap = true;
+    const kq = coTheXay(doc, o.i, "A", 10_000_000, 32, 12);
+    assert.strictEqual(kq.ok, false);
+    assert.match(kq.lyDo!, /thế chấp/);
+  });
+
+  it("vòng đầu không ai được xây tới bậc 3 nhà", () => {
+    const { o: tt, doc } = banTrang();
+    const o = timO("Đồng Văn");
+    tt[o.i].chu = "A";
+    tt[o.i].nha = 2;
 
     const tien = 10_000_000;
-    const vong1 = coTheXay(doc, nhom[0].i, "A", tien, 32, 12, 1);
+    const vong1 = coTheXay(doc, o.i, "A", tien, 32, 12, 1);
     assert.strictEqual(vong1.ok, false);
     assert.match(vong1.lyDo!, /[Vv]òng đầu/);
 
-    const vong2 = coTheXay(doc, nhom[0].i, "A", tien, 32, 12, 2);
+    const vong2 = coTheXay(doc, o.i, "A", tien, 32, 12, 2);
     assert.strictEqual(vong2.ok, true, "qua Xuất phát rồi thì xây tiếp được");
   });
 
