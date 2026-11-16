@@ -3,10 +3,10 @@ node_modules/
 build/
 dist/
 
-# file môi trường riêng của từng máy
+# file môi trường: giữ ngoài Git, chỉ commit .env.example làm mẫu
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Colyseus
 .colyseus-cloud.json

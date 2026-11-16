@@ -10,7 +10,17 @@ Cần Node.js 22 trở lên.
 
 ```bash
 npm install
+cp apps/backend/.env.example apps/backend/.env.development
 ```
+
+Rồi mở `apps/backend/.env.development` và sinh hai khoá:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Chạy hai lần, dán vào `JWT_SECRET` và `SESSION_SECRET`. File này **không nằm
+trong Git** — mỗi máy một khoá riêng.
 
 Mở hai cửa sổ dòng lệnh:
 
@@ -124,8 +134,10 @@ dòng mã nào.**
    ```
 4. Khởi động lại server. Nút Google tự bật, lối vào thử tự tắt.
 
-File `.env.development` còn có `JWT_SECRET` và `SESSION_SECRET` sinh sẵn cho
-máy mình. **Môi trường thật phải thay bằng giá trị khác** và giữ ngoài kho mã.
+`JWT_SECRET` và `SESSION_SECRET` là khoá ký token đăng nhập. Mỗi môi trường
+một giá trị riêng, **không bao giờ đưa lên kho mã** — ai có khoá là tự ký được
+token và đăng nhập thành bất kỳ ai. Mẫu nằm ở `.env.example` với giá trị rỗng;
+file thật `.env.development` đã nằm trong `.gitignore`.
 
 ### Luồng đăng nhập chạy thế nào
 
