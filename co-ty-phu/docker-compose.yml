@@ -1,0 +1,42 @@
+# PostgreSQL cho máy phát triển. Chạy: docker compose up -d
+#
+# Dữ liệu nằm trong volume co-ty-phu-db nên tắt máy vẫn còn. Muốn xoá sạch để
+# làm lại từ đầu: docker compose down -v
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: co-ty-phu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cotyphu
+      POSTGRES_PASSWORD: cotyphu
+      POSTGRES_DB: cotyphu
+      # Tiếng Việt có dấu, nên ép sẵn mã hoá UTF-8.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - co-ty-phu-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cotyphu -d cotyphu"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Giao diện web để xem và sửa dữ liệu: http://localhost:8080
+  # Chạy hoàn toàn trên máy, không gửi dữ liệu đi đâu.
+  adminer:
+    image: adminer:5
+    container_name: co-ty-phu-adminer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+    ports:
+      - "8080:8080"
+
+volumes:
+  co-ty-phu-db:

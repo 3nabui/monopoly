@@ -1,0 +1,333 @@
+{
+  "id": "49e48dc8-587c-4595-b5e1-e1c9eeab0a6f",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.ket_qua": {
+      "name": "ket_qua",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "van_id": {
+          "name": "van_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nguoi_dung_id": {
+          "name": "nguoi_dung_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thu_tu": {
+          "name": "thu_tu",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tai_san": {
+          "name": "tai_san",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "so_o": {
+          "name": "so_o",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "so_nha": {
+          "name": "so_nha",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "pha_san": {
+          "name": "pha_san",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "thang": {
+          "name": "thang",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "ket_qua_van_idx": {
+          "name": "ket_qua_van_idx",
+          "columns": [
+            {
+              "expression": "van_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ket_qua_nguoi_idx": {
+          "name": "ket_qua_nguoi_idx",
+          "columns": [
+            {
+              "expression": "nguoi_dung_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ket_qua_van_id_van_dau_id_fk": {
+          "name": "ket_qua_van_id_van_dau_id_fk",
+          "tableFrom": "ket_qua",
+          "tableTo": "van_dau",
+          "columnsFrom": [
+            "van_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ket_qua_nguoi_dung_id_nguoi_dung_id_fk": {
+          "name": "ket_qua_nguoi_dung_id_nguoi_dung_id_fk",
+          "tableFrom": "ket_qua",
+          "tableTo": "nguoi_dung",
+          "columnsFrom": [
+            "nguoi_dung_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.nguoi_dung": {
+      "name": "nguoi_dung",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ten": {
+          "name": "ten",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anh": {
+          "name": "anh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "khach": {
+          "name": "khach",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "so_van": {
+          "name": "so_van",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "so_van_thang": {
+          "name": "so_van_thang",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "tao_luc": {
+          "name": "tao_luc",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "vao_lan_cuoi": {
+          "name": "vao_lan_cuoi",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "nguoi_dung_email_idx": {
+          "name": "nguoi_dung_email_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.van_dau": {
+      "name": "van_dau",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ma_phong": {
+          "name": "ma_phong",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ten_phong": {
+          "name": "ten_phong",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "co_mat_khau": {
+          "name": "co_mat_khau",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "bat_dau_luc": {
+          "name": "bat_dau_luc",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ket_thuc_luc": {
+          "name": "ket_thuc_luc",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nguoi_thang": {
+          "name": "nguoi_thang",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "so_luot": {
+          "name": "so_luot",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "van_dau_bat_dau_idx": {
+          "name": "van_dau_bat_dau_idx",
+          "columns": [
+            {
+              "expression": "bat_dau_luc",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "van_dau_nguoi_thang_nguoi_dung_id_fk": {
+          "name": "van_dau_nguoi_thang_nguoi_dung_id_fk",
+          "tableFrom": "van_dau",
+          "tableTo": "nguoi_dung",
+          "columnsFrom": [
+            "nguoi_thang"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -39,6 +39,71 @@ thêm lối **Vào thử với tên tạm** để chạy ở máy mình. Lối n
 
 Hai địa chỉ cuối chỉ bật khi `NODE_ENV` khác `production`.
 
+## Cơ sở dữ liệu
+
+PostgreSQL chạy bằng Docker ngay trên máy anh/chị. Tất cả đều miễn phí và mã
+nguồn mở — không phải mua gói nào.
+
+```bash
+npm run db:bat      # bật PostgreSQL và Adminer
+npm run db:day      # tạo bảng (chạy migration)
+```
+
+Rồi chạy server như bình thường. Kiểm tra bằng
+<http://localhost:2567/health> — có `"luuTru": true` là đã nối được.
+
+### Xem dữ liệu
+
+Mở <http://localhost:8080> (Adminer, chạy sẵn trong `docker compose`):
+
+| Ô | Điền |
+| --- | --- |
+| System | PostgreSQL |
+| Server | `postgres` |
+| Username | `cotyphu` |
+| Password | `cotyphu` |
+| Database | `cotyphu` |
+
+Adminer chạy hoàn toàn trên máy, không gửi dữ liệu đi đâu. Ngoài ra còn
+`npm run db:xem` mở Drizzle Studio — tiện hơn vì hiểu lược đồ, nhưng giao diện
+của nó tải từ máy chủ của Drizzle.
+
+### Ba bảng
+
+| Bảng | Giữ gì |
+| --- | --- |
+| `nguoi_dung` | Tài khoản, tên, ảnh, số ván đã chơi và số ván thắng |
+| `van_dau` | Mỗi ván một dòng: phòng nào, bắt đầu và kết thúc lúc nào, ai thắng |
+| `ket_qua` | Kết quả từng người trong từng ván: tài sản, số ô, số nhà, có phá sản không |
+
+**Mật khẩu phòng không nằm trong database.** Nó chỉ sống trong bộ nhớ của
+phòng và mất khi phòng đóng.
+
+### Lệnh hay dùng
+
+| Lệnh | Việc |
+| --- | --- |
+| `npm run db:bat` | Bật PostgreSQL và Adminer |
+| `npm run db:tat` | Tắt, vẫn giữ dữ liệu |
+| `npm run db:xoa` | Tắt và **xoá sạch dữ liệu** |
+| `npm run db:tao` | Sinh file migration sau khi sửa `schema.ts` |
+| `npm run db:day` | Áp migration lên database |
+| `npm run db:xem` | Mở Drizzle Studio |
+
+### Không có database thì sao
+
+Server vẫn chạy và chơi được bình thường, chỉ là không lưu lại gì: tài khoản
+và lịch sử ván mất khi tắt. `/health` sẽ báo `"luuTru": false`. Làm vậy để
+người mới tải mã về chơi thử được ngay mà chưa cần dựng Docker.
+
+### Chuyển lên database trên mạng
+
+Dữ liệu hiện nằm trên máy anh/chị, nên chỉ mình anh/chị chơi được và tắt máy
+là tắt game. Khi cần người khác chơi thật, đổi `DATABASE_URL` trong
+`apps/backend/.env.development` sang chuỗi kết nối của nhà cung cấp — Neon và
+Supabase đều có gói miễn phí — rồi chạy lại `npm run db:day`. **Không phải sửa
+dòng mã nào.**
+
 ## Đăng nhập bằng Google
 
 1. Vào [Google Cloud Console](https://console.cloud.google.com/apis/credentials),

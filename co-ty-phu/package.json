@@ -10,7 +10,13 @@
     "dev:web": "npm run build:shared && npm run dev -w apps/frontend",
     "build": "npm run build:shared && npm run build -w apps/backend && npm run build -w apps/frontend",
     "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
-    "test": "npm run build:shared && npm test --workspaces --if-present"
+    "test": "npm run build:shared && npm test --workspaces --if-present",
+    "db:bat": "docker compose up -d",
+    "db:tat": "docker compose down",
+    "db:xoa": "docker compose down -v",
+    "db:tao": "npm run db:tao -w apps/backend",
+    "db:day": "npm run db:day -w apps/backend",
+    "db:xem": "npm run db:xem -w apps/backend"
   },
   "engines": {
     "node": ">= 22.0.0"

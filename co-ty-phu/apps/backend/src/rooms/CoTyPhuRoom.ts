@@ -4,9 +4,10 @@ import { nguoiDungTuToken, type NguoiDung } from "../config/auth.js";
 import {
   BAN_CO, DON_VI, LUONG, LUOT_KET_DAO, O_DAO_HOANG, O_XUAT_PHAT, SO_O,
   TIEN_BAN_DAU, TIEN_RA_DAO, coTheMua, coTheXay, dinhDang,
-  giaMua, giaTheChap, giaXay, khaNangChiTra, tienThue,
+  giaMua, giaTheChap, giaXay, khaNangChiTra, taiSanRong, tienThue,
   type DocO,
 } from "@co-ty-phu/shared";
+import { luuVan, type NguoiTrongVan } from "../db/kho.js";
 import { GameState, NguoiChoi, DongNhatKy, TrangThaiO as OSchema } from "./schema/GameState.js";
 import { gieoXucXac, tron } from "../rng.js";
 import { BO_CO_HOI, BO_KHI_VAN, type The } from "../cards.js";
@@ -44,6 +45,11 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
   /** Mật khẩu phòng giữ ở dạng băm trong bộ nhớ phòng, không bao giờ vào state. */
   private muoi = "";
   private bam = "";
+
+  /** Dùng khi ghi ván vào database lúc kết thúc. */
+  private batDauLuc = new Date();
+  private soLuot = 0;
+  private daLuu = false;
 
   /** Bộ đọc trạng thái ô để dùng lại các hàm luật trong package shared. */
   private get doc(): DocO {
@@ -303,6 +309,8 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
   private batDauVan() {
     this.lock();
     this.state.giaiDoan = "tung";
+    this.batDauLuc = new Date();
+    this.soLuot = 0;
     this.capNhatMoTa();
     this.ghi("Ván bắt đầu. Chúc may mắn!", "he-thong");
     this.batDauLuot(this.thuTuNguoiChoi()[0]);
@@ -311,6 +319,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
   private batDauLuot(sid: string) {
     const p = this.state.nguoiChoi.get(sid);
     if (!p) return;
+    this.soLuot++;
     this.state.luotCua = sid;
     this.state.giaiDoan = "tung";
     this.state.soLanDoi = 0;
@@ -664,7 +673,55 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     } else {
       this.state.thongBao = "Ván kết thúc.";
     }
+
+    void this.luuKetQua();
     return true;
+  }
+
+  /**
+   * Ghi ván vừa xong xuống database. Chạy ngoài luồng chơi: lưu hỏng thì chỉ
+   * mất bản ghi lịch sử, người chơi vẫn thấy kết quả bình thường.
+   */
+  private async luuKetQua() {
+    if (this.daLuu) return;
+    this.daLuu = true;
+
+    const nguoiChoi: NguoiTrongVan[] = [];
+    for (const [sid, p] of this.state.nguoiChoi.entries()) {
+      if (!p.uid) continue;
+      let soO = 0;
+      let soNha = 0;
+      for (const o of BAN_CO) {
+        const tt = this.state.o[o.i];
+        if (tt?.chu !== sid) continue;
+        soO++;
+        if (o.loai === "dat") soNha += tt.nha;
+      }
+      nguoiChoi.push({
+        nguoiDungId: p.uid,
+        thuTu: p.thuTu,
+        // Postgres integer tối đa khoảng 2,1 tỉ — tiền trong game không chạm tới.
+        taiSan: Math.min(2_000_000_000, Math.round(taiSanRong(this.doc, sid, p.tien))),
+        soO,
+        soNha,
+        phaSan: p.phaSan,
+        thang: sid === this.state.nguoiThang,
+      });
+    }
+
+    const thangUid = this.state.nguoiThang
+      ? this.state.nguoiChoi.get(this.state.nguoiThang)?.uid
+      : undefined;
+
+    await luuVan({
+      maPhong: this.roomId,
+      tenPhong: this.state.tenPhong,
+      coMatKhau: this.state.coMatKhau,
+      batDauLuc: this.batDauLuc,
+      soLuot: this.soLuot,
+      nguoiThang: thangUid,
+      nguoiChoi,
+    });
   }
 
   // --------------------------------------------------------------- thẻ bài

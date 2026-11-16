@@ -1,4 +1,5 @@
 import { auth, JWT } from "@colyseus/auth";
+import { docNguoiDung, luuNguoiDung } from "../db/kho.js";
 
 /**
  * Đăng nhập bằng tài khoản Google.
@@ -22,13 +23,20 @@ export interface NguoiDung {
 }
 
 /**
- * Kho người dùng trong bộ nhớ tiến trình: tắt server là mất.
- * Khi nào cần giữ lại thì thay ba chỗ đọc ghi bên dưới bằng truy vấn thật.
+ * Bộ nhớ đệm trong tiến trình. Nguồn thật là PostgreSQL; cache này chỉ để
+ * khỏi phải hỏi database mỗi lần có người vào phòng. Không có database thì
+ * nó trở thành nơi lưu duy nhất và mất khi tắt server.
  */
-const kho = new Map<string, NguoiDung>();
+const cache = new Map<string, NguoiDung>();
 
 export function layNguoiDung(id: string): NguoiDung | undefined {
-  return kho.get(id);
+  return cache.get(id);
+}
+
+/** Ghi vào cache rồi lưu xuống database, không chặn luồng đăng nhập. */
+function nhoNguoiDung(nd: NguoiDung) {
+  cache.set(nd.id, nd);
+  void luuNguoiDung(nd);
 }
 
 export const GOOGLE_SAN_SANG = Boolean(
@@ -52,7 +60,7 @@ auth.oauth.onCallback(async (data: any, provider) => {
     anh: p.picture,
     email: p.email,
   };
-  kho.set(id, nd);
+  nhoNguoiDung(nd);
   return nd;
 });
 
@@ -70,7 +78,7 @@ auth.settings.onRegisterAnonymously = async (options: any) => {
     ten: String(options?.ten || "Khách").trim().slice(0, 24) || "Khách",
     khach: true,
   };
-  kho.set(id, nd);
+  nhoNguoiDung(nd);
   return nd;
 };
 
@@ -89,14 +97,24 @@ export async function nguoiDungTuToken(token?: string): Promise<NguoiDung | unde
   try {
     const payload = await JWT.verify<any>(token);
     if (!payload?.id) return undefined;
-    // Kho có thể trống sau khi server khởi động lại; vẫn tin JWT vì nó đã ký.
-    return kho.get(payload.id) ?? {
+
+    const sanCo = cache.get(payload.id);
+    if (sanCo) return sanCo;
+
+    // Sau khi server khởi động lại, cache trống thì đọc lại từ database.
+    const tuDB = await docNguoiDung(payload.id);
+    if (tuDB) { cache.set(tuDB.id, tuDB); return tuDB; }
+
+    // Không có database: vẫn tin JWT vì nó đã được server này ký.
+    const tuToken: NguoiDung = {
       id: payload.id,
       ten: String(payload.ten || "Người chơi").slice(0, 24),
       anh: payload.anh,
       email: payload.email,
       khach: payload.khach,
     };
+    cache.set(tuToken.id, tuToken);
+    return tuToken;
   } catch {
     return undefined;
   }
