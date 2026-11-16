@@ -10,7 +10,7 @@
   },
   "scripts": {
     "start": "tsx watch src/index.ts",
-    "loadtest": "tsx loadtest/example.ts --room co_ty_phu --numClients 2",
+    "loadtest": "tsx loadtest/choithat.ts --room co_ty_phu --numClients 8 --endpoint ws://localhost:2567",
     "build": "npm run clean && tsc -p tsconfig.build.json",
     "clean": "rimraf build",
     "test": "mocha -r tsx test/**.test.ts --exit --timeout 15000",
