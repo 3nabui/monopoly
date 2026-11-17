@@ -687,9 +687,16 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     // --- ô góc ---
     if (o.loai === "goc") {
       if (o.icon === "dulich") {
-        this.nhayToi(p, O_XUAT_PHAT);
-        this.ghi(`${p.ten} đi Du lịch xuyên Việt về thẳng Xuất phát.`, "he-thong");
-        this.moQuyet(["tieptuc"], o.phu || "Nghỉ chân, không mất gì.");
+        // Đi tới ô nào là do người chơi chọn. Tới nơi thì ô đó được xử lý
+        // như một nước đi bình thường: mua được thì mua, có chủ thì trả thuê.
+        this.moChon(
+          sid, "dulich",
+          "Du lịch xuyên Việt: chọn một ô đất hoặc ô biển để đi tới. Đi ngang ô Xuất phát vẫn nhận lương.",
+          () => {
+            if (this.kiemTraKetThuc()) return;
+            this.xuLyO(sid);
+          },
+        );
         return;
       }
       if (o.icon === "lehoi") {
@@ -1262,6 +1269,9 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     this.datDongHo(GIAY_QUYET, () => {
       // Hết giờ thì server chọn thay: ô đầu danh sách, trừ thẻ tặng ô thì
       // chọn ô rẻ nhất để người chơi không mất phần đắt nhất vì chậm tay.
+      //
+      // Du lịch cũng lấy ô đầu danh sách: ô Xuất phát là ô góc nên không nằm
+      // trong danh sách đi tới được, không có nó mà chọn.
       const i = kieu === "tangO"
         ? ds.reduce((re, x) => ((BAN_CO[x].gia ?? 0) < (BAN_CO[re].gia ?? 0) ? x : re), ds[0])
         : ds[0];
@@ -1325,6 +1335,13 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
    * lễ hội toàn quốc cũng chỉ đăng cai ở ô đất.
    */
   private oHopLeDeChon(sid: string, kieu: KieuChon): number[] {
+    // Du lịch chỉ đi tới ô đất hoặc ô biển — đi tới ô thuế hay ô cơ hội thì
+    // chẳng ai chọn, còn đi tới ô góc thì vô nghĩa. Trừ chính ô đang đứng.
+    if (kieu === "dulich") {
+      const dangDung = this.state.nguoiChoi.get(sid)?.viTri ?? -1;
+      return BAN_CO.filter((o) => coTheMua(o) && o.i !== dangDung).map((o) => o.i);
+    }
+
     const ra: number[] = [];
     for (const o of BAN_CO) {
       if (o.loai !== "dat") continue;
@@ -1398,6 +1415,11 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
         );
         break;
       }
+
+      case "dulich":
+        this.nhayToi(p, i);
+        this.congBo("lehoi", sid, `${p.ten} du lịch xuyên Việt tới ${o.ten}.`);
+        break;
 
       case "tangO":
       case "tangNguoi":

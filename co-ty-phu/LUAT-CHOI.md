@@ -63,7 +63,7 @@ Bốn ô góc nằm ở vị trí 0, 8, 16, 24; mỗi cạnh có 7 ô thường 
 | 21 | Bảo Lộc | Lâm Đồng | 260K |
 | 22 | Đà Lạt | Lâm Đồng | 280K |
 | 23 | Đức Trọng | Lâm Đồng | 260K |
-| 24 | DU LỊCH XUYÊN VIỆT | góc | — |
+| 24 | DU LỊCH XUYÊN VIỆT | góc | Chọn ô để đi tới |
 | 25 | Biển Phú Quốc | ô biển | 200K |
 | 26 | Thủ Thiêm | TP. Hồ Chí Minh | 300K |
 | 27 | Bến Thành | TP. Hồ Chí Minh | 320K |
@@ -182,6 +182,18 @@ thắng ván — nhưng nó không còn là điều kiện để xây nữa.
 
 Mức thứ tư không bao giờ thu được: gom đủ cả bốn ô biển là thắng ngay, ván
 dừng tại đó.
+
+## Du lịch xuyên Việt
+
+Dừng ở ô góc 24 thì được **chọn một ô đất hoặc ô biển bất kỳ** trên bàn cờ để
+đi tới. Không chọn được ô góc, ô Cơ hội hay ô thuế — đi tới đó thì chẳng để
+làm gì.
+
+Đi ngang ô Xuất phát trên đường tới vẫn **nhận đủ 200K** và tính là sang vòng
+mới. Tới nơi thì ô đó được xử lý như một nước đi bình thường: chưa có chủ thì
+được mua, có chủ thì trả tiền thuê rồi chọn mua đứt.
+
+Hết 25 giây không chọn thì server đi tới ô hợp lệ đầu tiên.
 
 ## Lễ hội
 

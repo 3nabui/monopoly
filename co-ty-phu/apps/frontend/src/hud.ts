@@ -1,6 +1,5 @@
 import {
   BAC_KHACH_SAN, BAN_CO, DON_VI, MAU_NGUOI_CHOI, NHOM, SO_BIEN, SO_NHOM_THANG,
-  THU_TU_NHOM,
   HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC,
   bangThue, bangThueBien, coTheBan, coTheXay, dinhDang, giaMua, giaMuaDut,
   giaMuaThucTe, giaTheChap, giaXay, heSoLeHoi, mauCuaO, oMuaDutDuoc, tenLeHoi,
@@ -35,7 +34,6 @@ export interface HudCallbacks {
   onChon(o: number): void;
   /** Bước hai của thẻ tặng ô: chọn người nhận. */
   onChonNguoi(sid: string): void;
-  onDoiMau(): void;
   onChoiLai(): void;
   onPhongTo(): void;
   onThuNho(): void;
@@ -59,7 +57,6 @@ export class Hud {
 
   constructor(private cb: HudCallbacks) {
     this.ganSuKien();
-    this.dungBangGia();
   }
 
   datSid(sid: string) { this.sid = sid; }
@@ -211,44 +208,11 @@ export class Hud {
     $("btnZoomIn").addEventListener("click", () => this.cb.onPhongTo());
     $("btnZoomOut").addEventListener("click", () => this.cb.onThuNho());
     $("btnRoll").addEventListener("click", () => this.cb.onTung());
-    $("btnTheme").addEventListener("click", () => this.cb.onDoiMau());
-    $("btnLegend").addEventListener("click", () => {
-      const el = $("legend");
-      el.hidden = !el.hidden;
-      $("btnLegend").setAttribute("aria-pressed", String(!el.hidden));
-      window.dispatchEvent(new Event("hud:layout"));
-    });
-    $("btnLog").addEventListener("click", () => {
-      const el = $("log");
-      el.hidden = !el.hidden;
-      $("btnLog").setAttribute("aria-pressed", String(!el.hidden));
-    });
     $("tcClose").addEventListener("click", () => this.dongTheO());
     $("btnChoiLai").addEventListener("click", () => this.cb.onChoiLai());
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.dongTheO();
     });
-  }
-
-  // ------------------------------------------------------------ bảng giá
-
-  private dungBangGia() {
-    $("legendGroups").innerHTML = THU_TU_NHOM.map((key) => {
-      const g = NHOM[key];
-      const os = BAN_CO.filter((o) => o.nhom === key);
-      return `<div class="grp"><span class="sw" style="background:${g.mau}"></span>
-        <span class="gi"><span class="gn">${g.ten}</span>
-        <span class="gc">${os.map((o) => o.ten).join(" · ")}</span>
-        <span class="gp">${os.map((o) => `${o.gia}K`).join(" / ")}</span></span></div>`;
-    }).join("");
-    $("legendPorts").innerHTML = BAN_CO.filter((o) => o.loai === "bien").map((o) =>
-      `<div class="grp"><span class="sw" style="background:#00a2b5"></span>
-       <span class="gi"><span class="gn">${o.ten}</span>
-       <span class="gc">${o.phu ?? ""}</span><span class="gp">${o.gia}K</span></span></div>`,
-    ).join("")
-      + `<div class="grp"><span class="sw" style="background:#00a2b5"></span>
-         <span class="gi"><span class="gn">Gom đủ ${SO_BIEN} ô biển</span>
-         <span class="gc">Thắng ngay lập tức</span></span></div>`;
   }
 
   // ------------------------------------------------------------- hiển thị
@@ -263,7 +227,6 @@ export class Hud {
     this.vePanel(anh);
     this.veNutXay(anh);
     this.veKetXucXac(anh, dau);
-    this.veNhatKy(anh);
     this.veKetThuc(anh);
 
     const toi = anh.nguoiChoi.find((p) => p.sid === this.sid);
@@ -310,21 +273,40 @@ export class Hud {
 
   private veNguoiChoi(anh: AnhChup, dau: boolean) {
     const wrap = $("players");
+    const doi: { el: HTMLElement; sid: string; delta: number }[] = [];
     if (wrap.childElementCount !== anh.nguoiChoi.length) wrap.innerHTML = "";
 
     anh.nguoiChoi.forEach((p, idx) => {
       let el = wrap.children[idx] as HTMLElement | undefined;
       if (!el) {
         el = document.createElement("div");
-        el.innerHTML = `<div class="pip"></div><div class="meta">
-          <span class="nm"></span><span class="cash"></span><span class="tag"></span></div>`;
+        el.innerHTML = `<div class="pip"><span class="chu"></span><img alt="" hidden /></div>
+          <div class="meta">
+            <span class="nm"></span>
+            <span class="cash"></span>
+            <span class="tag"></span>
+          </div>`;
         wrap.appendChild(el);
       }
+      const mau = MAU_NGUOI_CHOI[p.mau % 4];
       el.className = `player p${idx}${anh.luotCua === p.sid ? " luot" : ""}${p.phaSan ? " phasan" : ""}`;
+      el.style.setProperty("--p-mau", mau);
+
       const pip = el.querySelector(".pip") as HTMLElement;
-      pip.style.background = MAU_NGUOI_CHOI[p.mau % 4];
-      pip.textContent = p.ten.charAt(0).toUpperCase();
-      (el.querySelector(".nm") as HTMLElement).textContent = p.ten + (p.sid === this.sid ? " (bạn)" : "");
+      const hinh = pip.querySelector("img") as HTMLImageElement;
+      const chu = pip.querySelector(".chu") as HTMLElement;
+      // Có ảnh Google thì dùng ảnh, không thì chữ cái đầu trên nền màu quân.
+      if (p.anh && hinh.dataset.src !== p.anh) {
+        hinh.dataset.src = p.anh;
+        hinh.src = p.anh;
+        hinh.referrerPolicy = "no-referrer";
+      }
+      hinh.hidden = !p.anh;
+      chu.hidden = Boolean(p.anh);
+      chu.textContent = p.ten.charAt(0).toUpperCase();
+
+      (el.querySelector(".nm") as HTMLElement).textContent =
+        p.ten + (p.sid === this.sid ? " (bạn)" : "");
       (el.querySelector(".cash") as HTMLElement).textContent = dinhDang(p.tien);
 
       const tag = el.querySelector(".tag") as HTMLElement;
@@ -336,9 +318,77 @@ export class Hud {
       else tag.textContent = "";
 
       const cu = this.tienCu.get(p.sid);
-      if (!dau && cu !== undefined && cu !== p.tien) this.bayTien(el, p.tien - cu);
+      if (!dau && cu !== undefined && cu !== p.tien) {
+        doi.push({ el, sid: p.sid, delta: p.tien - cu });
+      }
       this.tienCu.set(p.sid, p.tien);
     });
+
+    for (const d of doi) {
+      this.bayTien(d.el, d.delta);
+      d.el.classList.remove("nhay");
+      void d.el.offsetWidth;
+      d.el.classList.add("nhay", d.delta < 0 ? "nhay-tru" : "nhay-cong");
+      window.setTimeout(() => d.el.classList.remove("nhay", "nhay-tru", "nhay-cong"), 700);
+    }
+
+    // Đúng một người mất và một người được cùng một số tiền thì đó là một vụ
+    // chuyển tiền: cho xu bay từ người trả sang người nhận để thấy tiền đi
+    // đâu, chứ không chỉ thấy hai con số nhảy.
+    if (doi.length === 2) {
+      const tra = doi.find((d) => d.delta < 0);
+      const nhan = doi.find((d) => d.delta > 0);
+      if (tra && nhan && Math.abs(tra.delta) === nhan.delta) {
+        this.bayXu(tra.el, nhan.el);
+      }
+    }
+  }
+
+  /**
+   * Xu bay từ thẻ người trả sang thẻ người nhận.
+   *
+   * Dùng Web Animations API chứ không phải CSS keyframes, vì quãng đường phụ
+   * thuộc vị trí hai thẻ trên màn hình nên phải tính lúc chạy.
+   */
+  private bayXu(tu: HTMLElement, den: HTMLElement) {
+    const s = $("stage").getBoundingClientRect();
+    const a = tu.getBoundingClientRect();
+    const b = den.getBoundingClientRect();
+    const x1 = a.left - s.left + a.width / 2;
+    const y1 = a.top - s.top + a.height / 2;
+    const x2 = b.left - s.left + b.width / 2;
+    const y2 = b.top - s.top + b.height / 2;
+
+    for (let k = 0; k < 5; k++) {
+      const xu = document.createElement("div");
+      xu.className = "xu";
+      xu.style.left = `${x1}px`;
+      xu.style.top = `${y1}px`;
+      $("deltas").appendChild(xu);
+
+      // Mỗi xu lệch một chút cho thành một dòng chứ không phải một chấm.
+      const lechX = (Math.random() - 0.5) * 46;
+      const lechY = (Math.random() - 0.5) * 30;
+      const hoatAnh = xu.animate(
+        [
+          { transform: "translate(-50%, -50%) scale(.5)", opacity: 0 },
+          { transform: "translate(-50%, -50%) scale(1)", opacity: 1, offset: 0.15 },
+          {
+            transform: `translate(calc(-50% + ${(x2 - x1) / 2 + lechX}px), `
+              + `calc(-50% + ${(y2 - y1) / 2 + lechY - 44}px)) scale(1.1)`,
+            opacity: 1,
+            offset: 0.6,
+          },
+          {
+            transform: `translate(calc(-50% + ${x2 - x1}px), calc(-50% + ${y2 - y1}px)) scale(.6)`,
+            opacity: 0,
+          },
+        ],
+        { duration: 850, delay: k * 70, easing: "cubic-bezier(.3,.1,.3,1)", fill: "forwards" },
+      );
+      hoatAnh.onfinish = () => xu.remove();
+      window.setTimeout(() => xu.remove(), 1600);
+    }
   }
 
   /**
@@ -530,7 +580,13 @@ export class Hud {
     const o = BAN_CO[i];
     const tt = anh.o[i];
 
-    const tieuDe = gom ? "THIẾU TIỀN MẶT" : chon ? "THẺ CƠ HỘI" : null;
+    // Giai đoạn "chon" không phải lúc nào cũng do thẻ cơ hội sinh ra: ô góc
+    // Du lịch và ô Lễ hội toàn quốc cũng bắt chọn.
+    const nhanChon =
+      anh.kieuChon === "dulich" ? "Ô GÓC"
+      : anh.kieuChon === "leHoiToanQuoc" ? "LỄ HỘI TOÀN QUỐC"
+      : "THẺ CƠ HỘI";
+    const tieuDe = gom ? "THIẾU TIỀN MẶT" : chon ? nhanChon : null;
     $("apBand").style.background = gom ? "#d9534f" : chon ? "#ff8a3d" : o ? mauCuaO(o) : "#888";
     $("apGroup").textContent = tieuDe
       ?? (o?.loai === "dat" ? NHOM[o.nhom!].ten.toUpperCase() : o ? tenLoaiO(o) : "");
@@ -599,6 +655,15 @@ export class Hud {
         if (!ng) continue;
         them(ng.ten, "pri", () => this.cb.onChonNguoi(sid));
       }
+    } else if (chon && anh.kieuChon === "dulich") {
+      // Du lịch đi được tới hai tư ô. Ngần ấy cái nút thì không ai đọc nổi,
+      // nên để người chơi bấm thẳng vào ô trên bàn cờ.
+      const hint = document.createElement("p");
+      hint.className = "chonhint";
+      hint.textContent = "Bấm vào ô bạn muốn tới ngay trên bàn cờ.";
+      btns.appendChild(hint);
+      // Chỉ mời về Xuất phát khi ô đó thật sự nằm trong danh sách hợp lệ.
+      if (anh.oChonDuoc.includes(0)) them("Về Xuất phát", "gh", () => this.cb.onChon(0));
     } else if (chon) {
       // Mỗi ô hợp lệ thành một nút, không cần người chơi mò trên bàn cờ.
       for (const k of anh.oChonDuoc) {
@@ -648,6 +713,7 @@ export class Hud {
       case "tangO":         return "Chọn ô của bạn để tặng";
       case "tangNguoi":     return "Tặng cho ai?";
       case "leHoiToanQuoc": return "Chọn ô đăng cai lễ hội";
+      case "dulich":        return "Đi tới ô nào?";
       default:              return "Chọn một ô";
     }
   }
@@ -675,10 +741,6 @@ export class Hud {
     this.boDemTimer = window.setInterval(chay, 100);
   }
 
-  private veNhatKy(anh: AnhChup) {
-    $("log").innerHTML = anh.nhatKy.map((d) =>
-      `<div class="d ${d.loai}">${this.thoat(d.noiDung)}</div>`).join("");
-  }
 
   private veKetThuc(anh: AnhChup) {
     const el = $("ketthuc");

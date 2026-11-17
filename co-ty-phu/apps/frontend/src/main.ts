@@ -131,13 +131,6 @@ const hud = new Hud({
   onChon: (o) => mang?.chon(o),
   onChonNguoi: (sid) => mang?.chonNguoi(sid),
 
-  onDoiMau: () => {
-    const toi = document.documentElement.dataset.theme === "dark";
-    document.documentElement.dataset.theme = toi ? "light" : "dark";
-    document.getElementById("btnTheme")!.textContent = toi ? "☾" : "☀";
-    ban.dongBoMau();
-  },
-
   onChoiLai: () => {
     mang?.roi();
     document.getElementById("ketthuc")!.hidden = true;
@@ -159,22 +152,8 @@ ban.setOnChonO((i) => {
 ban.setOnZoom((z) => hud.capNhatZoom(z));
 hud.capNhatZoom(ban.mucZoom);
 
-/** Dành chỗ bên trái cho bảng giá khi màn hình đủ rộng. */
-function canChinhKhung() {
-  const legend = document.getElementById("legend")!;
-  const rong = window.innerWidth >= 1180 && !legend.hidden;
-  ban.datLechTrai(rong ? 282 : 0);
-}
-window.addEventListener("resize", canChinhKhung);
-window.addEventListener("hud:layout", canChinhKhung);
-canChinhKhung();
-
-// Theo hệ thống lúc mở, sau đó người chơi tự bấm nút đổi.
-if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-  document.documentElement.dataset.theme = "dark";
-  document.getElementById("btnTheme")!.textContent = "☀";
-  ban.dongBoMau();
-}
+// Không còn bảng nào chiếm chỗ hai bên nên bàn cờ nằm giữa màn hình.
+ban.datLechTrai(0);
 
 hud.ve(anh);
 

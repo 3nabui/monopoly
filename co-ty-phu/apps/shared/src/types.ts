@@ -102,4 +102,5 @@ export type KieuChon =
   | "tangNguoi"      // bước hai của tặng ô: chọn tặng cho ai
   | "matDien"        // làm một ô của người khác mất điện
   | "haBac"          // hạ một bậc công trình của người khác
-  | "leHoiToanQuoc"; // dời lễ hội toàn quốc về một ô đất của mình
+  | "leHoiToanQuoc"  // dời lễ hội toàn quốc về một ô đất của mình
+  | "dulich";        // ô góc Du lịch: chọn một ô bất kỳ để đi tới

@@ -3,7 +3,7 @@ import { ColyseusTestServer, boot } from "@colyseus/testing";
 import { JWT } from "@colyseus/auth";
 import {
   BAC_KHACH_SAN, BAN_CO, O_DAO_HOANG, SO_BIEN, SO_NHOM_THANG, SO_O, TIEN_BAN_DAU,
-  HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC, SO_LE_HOI_THUONG,
+  HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC, LUONG, SO_LE_HOI_THUONG,
   SO_NHA_TOI_DA, SO_KHACH_SAN_TOI_DA, SO_NGUOI_TOI_DA, SO_NGUOI_TOI_THIEU,
   bangThue, bangThueBien, coTheGiangCo, coTheMuaDut, coTheXay, giaMua,
   giaMuaDut, giaMuaThucTe, giaXay, thangNgay, tienThue,
@@ -605,6 +605,61 @@ describe("Phòng cờ tỷ phú", () => {
     assert.strictEqual(p.buocCuoi, 0, "dời thẳng thì client nhảy một nhịp, không đi bộ");
     void b;
   });
+  /* ------------------------------------------------ ô Du lịch xuyên Việt */
+
+  it("ô Du lịch chỉ cho chọn ô đất hoặc ô biển, không cho ô góc hay ô thẻ", async () => {
+    const { room, a } = await vanHaiNguoi();
+    const phong: any = room;
+    const sid = a.sessionId;
+
+    const ds: number[] = phong.oHopLeDeChon(sid, "dulich");
+    assert.ok(ds.length > 0);
+    for (const i of ds) {
+      const o = BAN_CO[i];
+      assert.ok(
+        o.loai === "dat" || o.loai === "bien",
+        `${o.ten} (${o.loai}) không được nằm trong danh sách đi tới`,
+      );
+    }
+    // Đủ cả 20 ô đất và 4 ô biển, trừ ô đang đứng nếu nó nằm trong nhóm đó.
+    const muaDuoc = BAN_CO.filter((o) => o.loai === "dat" || o.loai === "bien").length;
+    const dangDung = room.state.nguoiChoi.get(sid)!.viTri;
+    const tru = BAN_CO[dangDung].loai === "dat" || BAN_CO[dangDung].loai === "bien" ? 1 : 0;
+    assert.strictEqual(ds.length, muaDuoc - tru);
+  });
+
+  it("du lịch đi ngang ô Xuất phát thì vẫn nhận lương", async () => {
+    const { room, a } = await vanHaiNguoi();
+    const phong: any = room;
+    const sid = a.sessionId;
+    const p = room.state.nguoiChoi.get(sid)!;
+
+    // Đứng ở ô góc Du lịch (24) rồi chọn một ô phía trước ô Xuất phát.
+    p.viTri = 24;
+    const vongTruoc = p.soVong;
+    const tienTruoc = p.tien;
+    phong.apDungChon(sid, "dulich", 5);
+
+    assert.strictEqual(p.viTri, 5);
+    assert.strictEqual(p.tien, tienTruoc + LUONG, "đi ngang Xuất phát phải được cộng lương");
+    assert.strictEqual(p.soVong, vongTruoc + 1, "qua Xuất phát là sang vòng mới");
+    assert.ok(p.buocCuoi > 0, "đi tới chứ không phải lùi");
+  });
+
+  it("du lịch tới ô phía sau thì không có lương", async () => {
+    const { room, a } = await vanHaiNguoi();
+    const phong: any = room;
+    const sid = a.sessionId;
+    const p = room.state.nguoiChoi.get(sid)!;
+
+    p.viTri = 24;
+    const tienTruoc = p.tien;
+    phong.apDungChon(sid, "dulich", 27);
+
+    assert.strictEqual(p.viTri, 27);
+    assert.strictEqual(p.tien, tienTruoc, "chưa vòng qua Xuất phát thì chưa có lương");
+  });
+
   /* -------------------------------------------------- xây nhà và xúc xắc */
 
   it("bấm xây sai lúc thì được báo lý do, không lặng thinh bỏ qua", async () => {

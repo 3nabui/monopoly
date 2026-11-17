@@ -96,9 +96,6 @@ function damMau(c: THREE.Color) {
 function css(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
-function laToi(): boolean {
-  return document.documentElement.dataset.theme === "dark";
-}
 
 /* ====================================================================
    Công trình biểu tượng trên viền bàn cờ
@@ -240,6 +237,56 @@ function dayCo(mau: THREE.ColorRepresentation, rong: number, cao: number, z: num
     g.add(la);
   }
   return g;
+}
+
+/**
+ * Ảnh đại diện tròn vẽ lên canvas, dùng làm mặt cho tấm biển trên quân cờ.
+ *
+ * Chưa có ảnh thật thì vẽ chữ cái đầu trên nền màu quân. Ảnh Google tải về
+ * sau nên hàm trả canvas ngay, người gọi tự cập nhật texture khi ảnh xong.
+ */
+function texAvatar(mau: string, ten: string): HTMLCanvasElement {
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const x = c.getContext("2d")!;
+  veNenAvatar(x, S, mau, ten);
+  return c;
+}
+
+function veNenAvatar(x: CanvasRenderingContext2D, S: number, mau: string, ten: string) {
+  x.clearRect(0, 0, S, S);
+  // Vành trắng ngoài rồi tới vành màu quân, để quân nào ra quân nấy.
+  x.fillStyle = "#ffffff";
+  x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 2, 0, Math.PI * 2); x.fill();
+  x.fillStyle = mau;
+  x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 14, 0, Math.PI * 2); x.fill();
+
+  x.fillStyle = "#ffffff";
+  x.font = `800 ${Math.round(S * 0.46)}px "Baloo 2", sans-serif`;
+  x.textAlign = "center";
+  x.textBaseline = "middle";
+  x.fillText(ten.charAt(0).toUpperCase() || "?", S / 2, S / 2 + S * 0.03);
+}
+
+/** Cắt ảnh thành hình tròn và vẽ đè lên canvas đã có vành. */
+function veAnhVaoAvatar(c: HTMLCanvasElement, img: HTMLImageElement, mau: string) {
+  const S = c.width;
+  const x = c.getContext("2d")!;
+  x.clearRect(0, 0, S, S);
+  x.fillStyle = "#ffffff";
+  x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 2, 0, Math.PI * 2); x.fill();
+
+  x.save();
+  x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 14, 0, Math.PI * 2); x.clip();
+  const canh = Math.min(img.width, img.height) || 1;
+  x.drawImage(img, (img.width - canh) / 2, (img.height - canh) / 2, canh, canh, 0, 0, S, S);
+  x.restore();
+
+  // Vành màu quân vẽ sau cùng, đè lên mép ảnh.
+  x.strokeStyle = mau;
+  x.lineWidth = 14;
+  x.beginPath(); x.arc(S / 2, S / 2, S / 2 - 9, 0, Math.PI * 2); x.stroke();
 }
 
 /** Cột cờ nhỏ cắm trên ô đã có chủ nhưng chưa xây gì. */
@@ -819,18 +866,17 @@ function texMoiTruong(): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = W; c.height = H;
   const x = c.getContext("2d")!;
-  const toi = laToi();
   const g = x.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, css("--sky-1"));
   g.addColorStop(0.4, css("--sky-2"));
   g.addColorStop(0.5, css("--sky-3"));
-  g.addColorStop(0.52, toi ? "#1b2a22" : "#9bae95");
-  g.addColorStop(1, toi ? "#0d1511" : "#6d7d6c");
+  g.addColorStop(0.52, "#9cc07f");
+  g.addColorStop(1, "#5f9a55");
   x.fillStyle = g; x.fillRect(0, 0, W, H);
   const sx = W * 0.72, sy = H * 0.2;
   const sg = x.createRadialGradient(sx, sy, 0, sx, sy, H * 0.42);
-  sg.addColorStop(0, `rgba(255,252,238,${toi ? 0.45 : 1})`);
-  sg.addColorStop(0.2, `rgba(255,245,216,${toi ? 0.14 : 0.5})`);
+  sg.addColorStop(0, "rgba(255,252,238,1)");
+  sg.addColorStop(0.2, "rgba(255,245,216,.5)");
   sg.addColorStop(1, "rgba(255,245,216,0)");
   x.fillStyle = sg; x.fillRect(0, 0, W, H * 0.52);
   return c;
@@ -1158,26 +1204,30 @@ export class BanCo3D {
     this.matKerb.color.set(css("--kerb"));
     this.matCoNen.color.set(css("--grass"));
 
-    const toi = laToi();
-    this.hemi.intensity = toi ? 0.09 : 0.12;
-    this.sun.intensity = toi ? 0.45 : 1.45;
-    this.sun.color.set(toi ? 0xa9c6ff : 0xfff2d8);
-    this.fill.intensity = toi ? 0.18 : 0.26;
-    this.rim.intensity = toi ? 0.24 : 0.3;
-    this.renderer.toneMappingExposure = toi ? 0.6 : 0.55;
+    // Chỉ còn một bộ màu: ban ngày, nắng gắt, màu no.
+    //
+    // Phơi sáng cố ý giữ dưới 1: đẩy cao hơn thì mọi kênh màu bị cắt ngọn và
+    // bàn cờ bạc trắng ra — đã mắc đúng lỗi đó một lần. Muốn rực hơn thì tăng
+    // độ bão hoà của bảng màu trong style.css chứ đừng tăng phơi sáng.
+    this.hemi.intensity = 0.16;
+    this.sun.intensity = 1.75;
+    this.sun.color.set(0xfff4e2);
+    this.fill.intensity = 0.32;
+    this.rim.intensity = 0.38;
+    this.renderer.toneMappingExposure = 0.62;
     (this.scene.fog as THREE.Fog).color.set(css("--sky-2"));
     // Chuỗi hậu kỳ chạy trong không gian tuyến tính, nên đặt ngưỡng ở 1.0:
     // chỉ những gì thực sự phát sáng mới toả quầng, mặt ô trắng thì không.
     if (this.bloom) {
-      this.bloom.strength = toi ? 0.5 : 0.28;
+      this.bloom.strength = 0.3;
       this.bloom.threshold = 1.0;
-      this.bloom.radius = toi ? 0.7 : 0.5;
+      this.bloom.radius = 0.5;
     }
     for (const m of this.vatLieuCuaSo) {
-      m.emissive.set(toi ? 0xffcb6b : 0x000000);
-      m.emissiveIntensity = toi ? 2.6 : 0;
+      m.emissive.set(0x000000);
+      m.emissiveIntensity = 0;
     }
-    for (const s of this.may) s.material.color.set(toi ? 0x5e7ba8 : 0xffffff);
+    for (const s of this.may) s.material.color.set(0xffffff);
 
     if (this.envRT) this.envRT.dispose();
     const t = new THREE.CanvasTexture(texMoiTruong());
@@ -1205,7 +1255,7 @@ export class BanCo3D {
     for (const p of anh.nguoiChoi) {
       let q = this.quan.get(p.sid);
       if (!q) {
-        q = { nhom: this.taoQuan(p.mau), oHienTai: p.viTri, duongDi: [], t: 0 };
+        q = { nhom: this.taoQuan(p), oHienTai: p.viTri, duongDi: [], t: 0 };
         this.world.add(q.nhom);
         this.quan.set(p.sid, q);
         this.datQuanVaoO(q, p.viTri, anh);
@@ -1250,15 +1300,46 @@ export class BanCo3D {
     }));
   }
 
-  private taoQuan(mauIdx: number): THREE.Group {
-    const mau = new THREE.Color(MAU_NGUOI_CHOI[mauIdx % MAU_NGUOI_CHOI.length]);
+  /**
+   * Quân cờ: chân đế và thân như cũ, nhưng thay quả cầu trên đỉnh bằng tấm
+   * biển tròn mang ảnh đại diện của người chơi.
+   *
+   * Tấm biển là Sprite nên luôn quay mặt về phía máy quay, nhìn từ góc nào
+   * cũng thấy rõ mặt người — quả cầu cũ thì bốn quân chỉ khác nhau mỗi màu.
+   */
+  private taoQuan(p: { mau: number; ten: string; anh: string }): THREE.Group {
+    const maCss = MAU_NGUOI_CHOI[p.mau % MAU_NGUOI_CHOI.length];
+    const mau = new THREE.Color(maCss);
     const g = new THREE.Group();
+
     g.add(khoi(new THREE.CylinderGeometry(0.33, 0.42, 0.13, 26), Mp(mau, 0.3, 0.2, 0.85), 0, 0.065, 0));
-    g.add(khoi(new THREE.CylinderGeometry(0.13, 0.26, 0.42, 22), Mp(mau, 0.3, 0.2, 0.85), 0, 0.33, 0));
-    g.add(khoi(new THREE.SphereGeometry(0.22, 26, 20), Mp(mau, 0.22, 0.25, 0.95), 0, 0.7, 0));
-    const vien = khoi(new THREE.TorusGeometry(0.2, 0.035, 10, 24), Mp(0xf7f9fc, 0.18, 0.6, 0.6), 0, 0.52, 0);
-    vien.rotation.x = Math.PI / 2;
-    g.add(vien);
+    g.add(khoi(new THREE.CylinderGeometry(0.12, 0.26, 0.5, 22), Mp(mau, 0.3, 0.2, 0.85), 0, 0.37, 0));
+    const co = khoi(new THREE.TorusGeometry(0.17, 0.035, 10, 24), Mp(0xf7f9fc, 0.18, 0.6, 0.6), 0, 0.6, 0);
+    co.rotation.x = Math.PI / 2;
+    g.add(co);
+
+    const canvas = texAvatar(maCss, p.ten);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const bien = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+    bien.scale.setScalar(0.92);
+    bien.position.set(0, 1.08, 0);
+    g.add(bien);
+
+    if (p.anh) {
+      // Ảnh Google cần crossOrigin thì canvas mới không bị nhiễm bẩn; tải
+      // hỏng thì cứ để nguyên chữ cái đầu, không sao cả.
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.referrerPolicy = "no-referrer";
+      img.onload = () => {
+        try {
+          veAnhVaoAvatar(canvas, img, maCss);
+          tex.needsUpdate = true;
+        } catch { /* canvas bị nhiễm bẩn thì giữ chữ cái đầu */ }
+      };
+      img.src = p.anh;
+    }
     return g;
   }
 
@@ -1534,11 +1615,21 @@ export class BanCo3D {
       halfH = Math.max(halfH, Math.abs(v.y));
     }
 
-    const padX = 10, padY = 30;
+    // Lề nhỏ thôi: bàn cờ là hình thoi nên bốn góc màn hình vốn đã trống,
+    // đó cũng là chỗ đặt thanh người chơi.
+    const padX = 6, padY = 10;
+
+    /**
+     * Hộp bao tám đỉnh ở trên rộng hơn bóng thật của bàn cờ: bốn đỉnh hộp
+     * chiếu ra ngoài hình thoi, nên nếu vừa khít theo hộp thì bàn cờ nhỏ hơn
+     * hẳn so với khung. Nhân thêm một hệ số để hình thoi chạm sát mép màn
+     * hình; phần tràn ra chỉ là trời ở bốn góc.
+     */
+    const KHIT = 1.16;
     const usableW = Math.max(220, W - padX * 2 - this.lechTrai);
     const usableH = Math.max(220, H - padY * 2);
     const vuaKhit = Math.min(usableW / (halfW * 2), usableH / (halfH * 2));
-    const scale = vuaKhit * this.zoom;
+    const scale = vuaKhit * KHIT * this.zoom;
 
     // Giới hạn kéo để bàn cờ không bị lôi ra khỏi màn hình.
     const toiDaX = Math.max(0, halfW * scale - usableW / 2);

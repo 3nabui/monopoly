@@ -79,7 +79,7 @@ export const BAN_CO: readonly O[] = [
   { i: 22, loai: "dat",   ten: "Đà Lạt",        nhom: "lamdong",  gia: 280, moc: "nhaTho" },
   { i: 23, loai: "dat",   ten: "Đức Trọng",     nhom: "lamdong",  gia: 260, moc: "trucDien" },
 
-  { i: 24, loai: "goc",   ten: "DU LỊCH XUYÊN VIỆT", phu: "Về thẳng Xuất phát",    icon: "dulich" },
+  { i: 24, loai: "goc",   ten: "DU LỊCH XUYÊN VIỆT", phu: "Chọn một ô đất hoặc ô biển để đi tới", icon: "dulich" },
   { i: 25, loai: "bien",  ten: "Biển Phú Quốc",      phu: "Kiên Giang", gia: 200, moc: "bienDua" },
   { i: 26, loai: "dat",   ten: "Thủ Thiêm",     nhom: "hcm",      gia: 300, moc: "caoOcDoi" },
   { i: 27, loai: "dat",   ten: "Bến Thành",     nhom: "hcm",      gia: 320, moc: "choThap" },
