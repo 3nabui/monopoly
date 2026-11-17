@@ -542,42 +542,48 @@ canvas#scene { display: block; width: 100%; height: 100%; touch-action: manipula
 /* ------------------------------------------------- kết quả gieo xúc xắc
    Hiện cho cả bàn, không riêng người tung. Nằm phía trên bàn cờ để không
    chạm vào tấm thẻ công bố ở giữa hay thanh nút ở đáy. */
+/*
+ * Kết quả gieo nằm GIỮA màn hình, ngay trên bàn cờ: đó là thứ cả bàn đang
+ * chờ xem, không nên nép ở mép trên. Hiện lúc xúc xắc vừa dừng lăn, biến đi
+ * trước khi quân cờ đi tới nơi.
+ */
 .dicekq {
-  position: absolute; left: 50%; transform: translateX(-50%);
-  top: calc(56px + env(safe-area-inset-top, 0px)); z-index: 7;
-  display: flex; align-items: center; gap: 9px;
-  padding: 9px 15px; border-radius: 999px;
-  background: var(--panel); border: 1px solid var(--panel-line);
-  box-shadow: 0 14px 34px var(--panel-shadow);
-  animation: kxVao .3s cubic-bezier(.2, 1.4, .4, 1);
+  position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%);
+  z-index: 8;
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 26px; border-radius: 22px;
+  background: var(--panel); border: 2px solid var(--kx-mau, var(--panel-line));
+  box-shadow: 0 24px 60px rgba(5, 12, 28, .45);
+  animation: kxVao .34s cubic-bezier(.2, 1.4, .4, 1);
   pointer-events: none;
 }
 .dicekq[hidden] { display: none !important; }
 
 @keyframes kxVao {
-  from { transform: translateX(-50%) translateY(-10px) scale(.9); opacity: 0; }
-  to   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  from { transform: translate(-50%, -50%) scale(.72); opacity: 0; }
+  60%  { transform: translate(-50%, -50%) scale(1.06); opacity: 1; }
+  to   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
 .dicekq .ai {
-  font-size: 12px; font-weight: 800; letter-spacing: .04em;
+  font-size: 14px; font-weight: 800; letter-spacing: .04em;
   text-transform: uppercase; color: var(--kx-mau, var(--panel-sub));
 }
 .dicekq .so {
   display: grid; place-items: center;
-  width: 30px; height: 30px; border-radius: 9px;
+  width: 54px; height: 54px; border-radius: 14px;
   background: #fbfcfe; color: #d93b4e;
-  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 18px;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .12);
+  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 32px;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .14), 0 4px 12px rgba(5, 12, 28, .18);
 }
 .dicekq .tong {
-  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 17px;
+  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 30px;
   color: var(--panel-ink);
 }
 .dicekq .doi {
-  font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+  font-size: 12px; font-weight: 800; letter-spacing: .08em;
   color: var(--accent-ink); background: var(--accent);
-  padding: 3px 8px; border-radius: 999px;
+  padding: 5px 11px; border-radius: 999px;
 }
 .dicekq .doi[hidden] { display: none !important; }
 
@@ -585,4 +591,21 @@ canvas#scene { display: block; width: 100%; height: 100%; touch-action: manipula
 .actpanel .chonhint {
   flex: 1 1 100%; margin: 0 0 4px; font-size: 12.5px; line-height: 1.5;
   color: var(--panel-sub);
+}
+
+/* Nút mua theo bậc: tên bậc ở trên, giá ở dưới, để bốn lựa chọn so được
+   với nhau bằng mắt thay vì phải tự cộng nhẩm giá đất với giá xây. */
+.actpanel .btn.muabac {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 9px 8px; min-width: 76px; flex: 1 1 0;
+}
+.actpanel .btn.muabac .bac { font-size: 11px; letter-spacing: .04em; opacity: .85; }
+.actpanel .btn.muabac .gia { font-size: 14px; font-variant-numeric: tabular-nums; }
+.actpanel .btn.muabac:disabled { opacity: .4; cursor: default; }
+
+@media (max-width: 720px) {
+  .dicekq { gap: 9px; padding: 12px 18px; }
+  .dicekq .so { width: 42px; height: 42px; font-size: 25px; }
+  .dicekq .tong { font-size: 23px; }
+  .dicekq .ai { font-size: 12px; }
 }

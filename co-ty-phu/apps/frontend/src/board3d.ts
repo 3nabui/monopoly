@@ -23,6 +23,11 @@ const NUA = GOC + RONG * 3.5;  // 10.2 — mép ngoài hàng ô
 const BIA = NUA + VIEN;        // 13.1 — mép ngoài bệ
 const TRUC = NUA - SAU / 2;    //  8.6 — khoảng cách từ tâm tới tâm ô
 
+/** Xúc xắc lăn bao lâu trước khi dừng hẳn, tính bằng mili giây. */
+const GIAY_LAN_XUC_XAC = 3000;
+/** Dừng xong còn chờ thêm ngần này cho người chơi đọc kết quả rồi quân mới đi. */
+const DOI_TRUOC_KHI_DI = 900;
+
 interface ViTriO {
   x: number; z: number; ry: number;
   ox: number; oz: number;   // hướng ra ngoài
@@ -972,11 +977,21 @@ export class BanCo3D {
   /**
    * Hoạt ảnh gieo: tungT chạy từ 0 tới 1 rồi dừng. Bằng 1 nghĩa là không có
    * hoạt ảnh nào đang chạy.
+   *
+   * Tính theo đồng hồ chứ không theo số khung hình: tab chạy nền bị treo
+   * requestAnimationFrame, nếu đếm theo khung thì xúc xắc không bao giờ dừng
+   * và quân cờ kẹt luôn ở đó.
    */
   private tungT = 1;
+  private tungBatDau = 0;
   private tungDich: [number, number] = [1, 1];
   private tungQuay: { x: number; y: number; z: number }[] = [];
   private lanTungCu = -1;
+  /** Quân cờ đứng im trong lúc xúc xắc còn lăn. */
+  private khoaQuan = false;
+  private anhCuoi: AnhChup | null = null;
+  private onXucXacDung?: () => void;
+  private henXucXac: number[] = [];
   private may: THREE.Sprite[] = [];
   private cocTien: THREE.Group[] = [];
 
@@ -1288,29 +1303,15 @@ export class BanCo3D {
   /* --------------------------------------------------------- cập nhật */
 
   capNhat(anh: AnhChup) {
+    this.anhCuoi = anh;
+
     // sở hữu, nhà, khách sạn
     anh.o.forEach((tt, i) => this.veSoHuu(i, tt, anh));
 
     // cờ lễ hội
     anh.o.forEach((tt, i) => this.veLeHoi(i, tt));
 
-    // quân cờ
-    const conSong = new Set(anh.nguoiChoi.map((p) => p.sid));
-    for (const [sid, q] of this.quan) {
-      if (!conSong.has(sid)) { this.world.remove(q.nhom); this.quan.delete(sid); }
-    }
-    for (const p of anh.nguoiChoi) {
-      let q = this.quan.get(p.sid);
-      if (!q) {
-        q = { nhom: this.taoQuan(p), oHienTai: p.viTri, duongDi: [], t: 0 };
-        this.world.add(q.nhom);
-        this.quan.set(p.sid, q);
-        this.datQuanVaoO(q, p.viTri, anh);
-      }
-      q.nhom.visible = !p.phaSan;
-      const dich = q.duongDi.length ? q.duongDi[q.duongDi.length - 1] : q.oHienTai;
-      if (dich !== p.viTri) this.lenDuongDi(q, dich, p.viTri, p.buocCuoi);
-    }
+    this.capNhatQuan(anh);
 
     // xúc xắc
     if (anh.xx1 > 0 && anh.xx2 > 0) {
@@ -1334,9 +1335,47 @@ export class BanCo3D {
     }
   }
 
-  /** Bắt đầu hoạt ảnh gieo, kết thúc đúng hai mặt server đã chốt. */
+  /**
+   * Dựng và dời quân cờ.
+   *
+   * Tách khỏi capNhat vì lúc xúc xắc đang lăn thì quân phải đứng im; chạy
+   * lại hàm này khi xúc xắc dừng là quân đi đúng chỗ server đã báo.
+   */
+  private capNhatQuan(anh: AnhChup) {
+    const conSong = new Set(anh.nguoiChoi.map((p) => p.sid));
+    for (const [sid, q] of this.quan) {
+      if (!conSong.has(sid)) { this.world.remove(q.nhom); this.quan.delete(sid); }
+    }
+    for (const p of anh.nguoiChoi) {
+      let q = this.quan.get(p.sid);
+      if (!q) {
+        q = { nhom: this.taoQuan(p), oHienTai: p.viTri, duongDi: [], t: 0 };
+        this.world.add(q.nhom);
+        this.quan.set(p.sid, q);
+        this.datQuanVaoO(q, p.viTri, anh);
+      }
+      q.nhom.visible = !p.phaSan;
+      // Xúc xắc còn lăn thì chưa dời ai cả; lát nữa chạy lại hàm này.
+      if (this.khoaQuan) continue;
+      const dich = q.duongDi.length ? q.duongDi[q.duongDi.length - 1] : q.oHienTai;
+      if (dich !== p.viTri) this.lenDuongDi(q, dich, p.viTri, p.buocCuoi);
+    }
+  }
+
+  /**
+   * Bắt đầu hoạt ảnh gieo, kết thúc đúng hai mặt server đã chốt.
+   *
+   * Trình tự: xúc xắc lăn GIAY_LAN_XUC_XAC, dừng lại và báo ra ngoài để HUD
+   * hiện kết quả, chờ thêm một nhịp rồi quân cờ mới bắt đầu đi. Quân cờ đi
+   * ngay từ lúc server báo thì người chơi chưa kịp đọc xúc xắc ra mấy điểm.
+   */
   private gieoXucXac(a: number, b: number) {
+    for (const h of this.henXucXac) clearTimeout(h);
+    this.henXucXac = [];
+
     this.tungT = 0;
+    this.tungBatDau = performance.now();
+    this.khoaQuan = true;
     this.tungDich = [a, b];
     // Mỗi con một trục quay riêng, nếu không hai con quay y hệt nhau trông
     // như một khối.
@@ -1345,7 +1384,30 @@ export class BanCo3D {
       y: (Math.random() * 2 - 1) * 16 + 10,
       z: (Math.random() * 2 - 1) * 16 + 10,
     }));
+
+    // Hẹn giờ bằng setTimeout chứ không dựa vào vòng lặp vẽ: tab chạy nền
+    // vẫn chạy timer, nên ván không bao giờ kẹt vì người chơi đổi tab.
+    this.henXucXac.push(window.setTimeout(() => {
+      this.chotMatXucXac();
+      this.onXucXacDung?.();
+    }, GIAY_LAN_XUC_XAC));
+
+    this.henXucXac.push(window.setTimeout(() => {
+      this.khoaQuan = false;
+      if (this.anhCuoi) this.capNhatQuan(this.anhCuoi);
+    }, GIAY_LAN_XUC_XAC + DOI_TRUOC_KHI_DI));
   }
+
+  /** Dừng xúc xắc đúng hai mặt server đã chốt. */
+  private chotMatXucXac() {
+    this.tungT = 1;
+    this.datMatXucXac(this.dice[0], this.tungDich[0]);
+    this.datMatXucXac(this.dice[1], this.tungDich[1]);
+    this.dice.forEach((m, i) => { m.position.y = this.diceY[i] ?? 0.72; });
+  }
+
+  /** Báo cho bên ngoài biết lúc xúc xắc vừa dừng, để HUD hiện kết quả. */
+  setOnXucXacDung(cb: () => void) { this.onXucXacDung = cb; }
 
   /**
    * Quân cờ: chân đế và thân như cũ, nhưng thay quả cầu trên đỉnh bằng tấm
@@ -1723,7 +1785,7 @@ export class BanCo3D {
 
     // xúc xắc đang gieo: quay nhanh rồi chậm dần, nảy hai nhịp rồi nằm im
     if (this.tungT < 1) {
-      this.tungT = Math.min(1, this.tungT + 0.022);
+      this.tungT = Math.min(1, (performance.now() - this.tungBatDau) / GIAY_LAN_XUC_XAC);
       const t = this.tungT;
       const cham = (1 - t) ** 1.6;
       this.dice.forEach((m, i) => {
@@ -1736,12 +1798,7 @@ export class BanCo3D {
         const nay = Math.abs(Math.sin(t * Math.PI * 2.3)) * (1 - t) * 2.6;
         m.position.y = (this.diceY[i] ?? 0.72) + nay;
       });
-      if (this.tungT >= 1) {
-        // Chốt đúng mặt mà server đã gieo.
-        this.datMatXucXac(this.dice[0], this.tungDich[0]);
-        this.datMatXucXac(this.dice[1], this.tungDich[1]);
-        this.dice.forEach((m, i) => { m.position.y = this.diceY[i] ?? 0.72; });
-      }
+      if (this.tungT >= 1) this.chotMatXucXac();
     }
 
     // quân cờ nhảy từng ô một
@@ -1765,6 +1822,7 @@ export class BanCo3D {
 
   dispose() {
     this.huy = true;
+    for (const h of this.henXucXac) clearTimeout(h);
     this.envRT?.dispose();
     this.pmrem.dispose();
     this.composer.dispose();

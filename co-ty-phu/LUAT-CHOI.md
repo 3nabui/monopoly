@@ -81,8 +81,10 @@ Số ô ở cột đầu chính là số dùng trong thẻ `diToi`.
 
 ## Một lượt chơi
 
-1. Tung hai xúc xắc, đi số ô bằng tổng điểm.
-2. Xử lý ô vừa dừng (mua, trả thuê, mua đứt, rút thẻ, nộp thuế…).
+1. Tung hai xúc xắc. Hai quân lăn khoảng 3 giây, dừng lại, kết quả hiện ở
+   giữa màn hình cho cả bàn cùng thấy, rồi quân cờ mới bắt đầu đi.
+2. Đi số ô bằng tổng điểm, rồi xử lý ô vừa dừng (mua, trả thuê, mua đứt,
+   rút thẻ, nộp thuế…).
 3. Tung ra **đôi** thì được đi thêm một lượt. **Đôi ba lần liên tiếp** thì vào
    Đảo Hoang ngay, không đi theo lần đôi thứ ba.
 
@@ -94,8 +96,24 @@ thay, không ai bị treo ván vì người khác rời máy.
 
 ## Mua đất
 
-Dừng ở ô chưa có chủ thì được mua đúng giá in trên bàn. Không mua thì ô đó
-vẫn trống.
+Dừng ở ô chưa có chủ thì được chọn một trong bốn mức, không bị ép một giá:
+
+| Chọn | Phải trả |
+| --- | --- |
+| Mua đất | giá đất |
+| Mua kèm 1 nhà | giá đất + 1 × giá xây |
+| Mua kèm 2 nhà | giá đất + 2 × giá xây |
+| Mua kèm 3 nhà | giá đất + 3 × giá xây |
+
+Ví dụ Đồng Văn giá 60K, giá xây 15K mỗi bậc: 60K / 75K / 90K / 105K.
+
+Mua kèm nhà không rẻ hơn mua rồi xây dần về tiền — vẫn đúng giá đất cộng
+đúng giá xây — chỉ đỡ phải chờ tới lượt sau. **Không mua thẳng lên khách
+sạn**: bậc cuối phải xây riêng. Ô biển thì chỉ mua đất, không xây được.
+
+Luật vòng đầu vẫn áp dụng: vòng thứ nhất chỉ mua kèm tối đa 2 nhà.
+
+Không mua thì ô đó vẫn trống.
 
 Ô vừa mua chưa có nhà nào — trên bàn 3D nó được **cắm một lá cờ** màu người
 chơi. Đó là bậc 0 của thang công trình.

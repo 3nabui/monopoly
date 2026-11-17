@@ -126,6 +126,7 @@ const hud = new Hud({
   onSanSang: () => mang?.gui("sanSang"),
   onTung: () => mang?.gui("tungXucXac"),
   onHanhDong: (hd) => mang?.gui(hd as any),
+  onMua: (bac) => mang?.mua(bac),
   onXay: (o) => mang?.xay(o),
   onBan: (o) => mang?.ban(o),
   onChon: (o) => mang?.chon(o),
@@ -149,6 +150,8 @@ ban.setOnChonO((i) => {
   }
   hud.moTheO(i);
 });
+// Xúc xắc dừng lăn thì mới hiện kết quả và mở bảng hành động.
+ban.setOnXucXacDung(() => hud.hienKetXucXac());
 ban.setOnZoom((z) => hud.capNhatZoom(z));
 hud.capNhatZoom(ban.mucZoom);
 

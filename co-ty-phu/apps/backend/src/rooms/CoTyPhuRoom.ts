@@ -6,8 +6,8 @@ import {
   O_DAO_HOANG, O_XUAT_PHAT, SO_NHOM_THANG, SO_O,
   TIEN_BAN_DAU, TIEN_RA_DAO,
   SO_LE_HOI_THUONG, SO_NGUOI_TOI_DA, SO_NGUOI_TOI_THIEU,
-  coTheBan, coTheGiangCo, coTheMua, coTheMuaDut, coTheXay, dinhDang,
-  giaMuaDut, giaMuaThucTe, giaTheChap, giaXay, khaNangChiTra,
+  coTheBan, coTheGiangCo, coTheMua, coTheMuaBac, coTheMuaDut, coTheXay, dinhDang,
+  giaMuaDut, giaMuaKemNha, giaMuaThucTe, giaTheChap, giaXay, khaNangChiTra,
   taiSanRong, tenLeHoi, thangNgay, tienThue, tienThueO,
   BO_CO_HOI,
   type DocO, type KieuChon, type The,
@@ -231,7 +231,11 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     },
 
     /** Mua ô chưa có chủ, đúng giá in trên bàn cờ. */
-    mua: (client: Client) => {
+    /**
+     * Mua ô chưa có chủ. `bac` là số nhà dựng luôn lúc mua, 0 là mua đất
+     * suông — người chơi không bị ép chỉ một mức giá nữa.
+     */
+    mua: (client: Client, tin: { bac?: number } = {}) => {
       if (!this.denLuot(client) || this.state.giaiDoan !== "quyet") return;
       if (!this.choPhep("mua")) return;
 
@@ -239,14 +243,24 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
       const o = BAN_CO[i];
       const tt = this.state.o[i];
       const p = this.state.nguoiChoi.get(client.sessionId)!;
-      const gia = giaMuaThucTe(o, tt);
-      if (p.tien < gia) return;
+      const bac = Math.round(Number(tin.bac ?? 0)) || 0;
 
+      const kq = coTheMuaBac(this.doc, i, p.tien, this.state.nhaConLai, bac, p.soVong);
+      if (!kq.ok) {
+        client.send("loi", { thongBao: kq.lyDo });
+        return;
+      }
+
+      const gia = giaMuaKemNha(o, tt, bac);
       p.tien -= gia;
       tt.chu = client.sessionId;
+      tt.nha = bac;
+      this.state.nhaConLai -= bac;
+
       const co = tenLeHoi(tt);
       this.ghi(
-        `${p.ten} mua ${o.ten} với ${dinhDang(gia)}${co ? ` (${co.toLowerCase()})` : ""}.`,
+        `${p.ten} mua ${o.ten} với ${dinhDang(gia)}`
+          + `${bac > 0 ? ` kèm ${bac} nhà` : ""}${co ? ` (${co.toLowerCase()})` : ""}.`,
         "mua",
       );
       this.ketThucQuyet();

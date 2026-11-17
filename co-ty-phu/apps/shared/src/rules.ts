@@ -170,6 +170,59 @@ export function giaMuaDut(o: O, tt: TrangThaiO): number {
   return von * HE_SO_MUA_DUT;
 }
 
+/**
+ * Giá mua một ô chưa có chủ, kèm luôn `bac` căn nhà dựng ngay lúc mua.
+ *
+ * bac = 0 là mua đất suông. Mua kèm nhà rẻ hơn mua rồi xây dần về số lần
+ * thao tác chứ không rẻ hơn về tiền: vẫn đúng giá đất cộng đúng giá xây.
+ */
+export function giaMuaKemNha(o: O, tt: TrangThaiO, bac: number): number {
+  return giaMuaThucTe(o, tt) + Math.max(0, bac) * giaXay(o);
+}
+
+/**
+ * Bậc cao nhất được phép dựng ngay khi mua một ô chưa có chủ.
+ *
+ * Không mua thẳng lên khách sạn: bậc cuối phải xây riêng, đó là phần thưởng
+ * cho người theo đuổi một ô tới cùng chứ không phải thứ mua một phát là có.
+ */
+export const BAC_MUA_TOI_DA = BAC_KHACH_SAN - 1;
+
+/**
+ * Mua ô i và dựng luôn `bac` căn nhà được hay không.
+ *
+ * Gom mọi điều kiện vào một chỗ để nút bấm bên client không bao giờ hứa một
+ * việc mà server sẽ từ chối.
+ */
+export function coTheMuaBac(
+  doc: DocO,
+  i: number,
+  tienMat: number,
+  nhaConLai: number,
+  bac: number,
+  soVong = 99,
+): KetQuaKiemTra {
+  const o = BAN_CO[i];
+  const tt = doc(i);
+  if (!o || !tt || !coTheMua(o)) return { ok: false, lyDo: "Ô này không mua được." };
+  if (tt.chu) return { ok: false, lyDo: "Ô đã có chủ." };
+  if (!Number.isInteger(bac) || bac < 0 || bac > BAC_MUA_TOI_DA) {
+    return { ok: false, lyDo: "Bậc nhà không hợp lệ." };
+  }
+  if (bac > 0 && o.loai !== "dat") {
+    return { ok: false, lyDo: "Ô biển không xây nhà được." };
+  }
+  if (bac > 0 && soVong <= 1 && bac > BAC_TOI_DA_VONG_DAU) {
+    return { ok: false, lyDo: `Vòng đầu chỉ được tới ${BAC_TOI_DA_VONG_DAU} nhà.` };
+  }
+  if (bac > nhaConLai) {
+    return { ok: false, lyDo: "Hộp không còn đủ nhà." };
+  }
+  const gia = giaMuaKemNha(o, tt, bac);
+  if (tienMat < gia) return { ok: false, lyDo: `Cần ${dinhDang(gia)}, bạn không đủ tiền.` };
+  return { ok: true };
+}
+
 export interface KetQuaKiemTra {
   ok: boolean;
   /** Lý do không làm được, viết sẵn bằng tiếng Việt để HUD hiện thẳng. */

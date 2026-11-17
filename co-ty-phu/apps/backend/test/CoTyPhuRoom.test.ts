@@ -3,10 +3,10 @@ import { ColyseusTestServer, boot } from "@colyseus/testing";
 import { JWT } from "@colyseus/auth";
 import {
   BAC_KHACH_SAN, BAN_CO, O_DAO_HOANG, SO_BIEN, SO_NHOM_THANG, SO_O, TIEN_BAN_DAU,
-  HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC, LUONG, SO_LE_HOI_THUONG,
+  BAC_MUA_TOI_DA, HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC, LUONG, SO_LE_HOI_THUONG,
   SO_NHA_TOI_DA, SO_KHACH_SAN_TOI_DA, SO_NGUOI_TOI_DA, SO_NGUOI_TOI_THIEU,
   bangThue, bangThueBien, coTheGiangCo, coTheMuaDut, coTheXay, giaMua,
-  giaMuaDut, giaMuaThucTe, giaXay, thangNgay, tienThue,
+  coTheMuaBac, giaMuaDut, giaMuaKemNha, giaMuaThucTe, giaXay, thangNgay, tienThue,
 } from "@co-ty-phu/shared";
 import type { TrangThaiO } from "@co-ty-phu/shared";
 import appConfig from "../src/app.config.js";
@@ -278,7 +278,10 @@ describe("Phòng cờ tỷ phú", () => {
 
     const sid = room.state.luotCua;
     const i = room.state.oChoQuyet;
-    const gia = giaMua(BAN_CO[i]);
+    // Phải tính cả hệ số lễ hội: cờ lễ hội giăng ngẫu nhiên đầu ván, rơi
+    // trúng đúng ô này là giá gấp đôi. Dùng giá niêm yết thì test đúng hay
+    // sai tuỳ may rủi.
+    const gia = giaMuaThucTe(BAN_CO[i], room.state.o[i]);
     const truoc = room.state.nguoiChoi.get(sid)!.tien;
 
     dangDi.send("mua");
@@ -605,6 +608,92 @@ describe("Phòng cờ tỷ phú", () => {
     assert.strictEqual(p.buocCuoi, 0, "dời thẳng thì client nhảy một nhịp, không đi bộ");
     void b;
   });
+  /* ------------------------------------------- mua đất kèm chọn bậc nhà */
+
+  it("mua đất được chọn bậc, giá bằng giá đất cộng giá xây từng căn", () => {
+    const o = timO("Đồng Văn");
+    const { o: tt, doc } = banTrang();
+    const giau = 99_999_999;
+
+    for (let bac = 0; bac <= BAC_MUA_TOI_DA; bac++) {
+      assert.strictEqual(
+        giaMuaKemNha(o, tt[o.i], bac), giaMua(o) + bac * giaXay(o),
+        `giá mua kèm ${bac} nhà`,
+      );
+      assert.strictEqual(
+        coTheMuaBac(doc, o.i, giau, 32, bac, 9).ok, true,
+        `phải mua được kèm ${bac} nhà`,
+      );
+    }
+
+    // Không mua thẳng lên khách sạn: bậc cuối phải xây riêng.
+    assert.strictEqual(coTheMuaBac(doc, o.i, giau, 32, BAC_MUA_TOI_DA + 1, 9).ok, false);
+  });
+
+  it("vòng đầu mua kèm tối đa 2 nhà", () => {
+    const o = timO("Đồng Văn");
+    const { doc } = banTrang();
+    const giau = 99_999_999;
+
+    for (const bac of [0, 1, 2]) {
+      assert.strictEqual(coTheMuaBac(doc, o.i, giau, 32, bac, 1).ok, true, `bậc ${bac}`);
+    }
+    const kq = coTheMuaBac(doc, o.i, giau, 32, 3, 1);
+    assert.strictEqual(kq.ok, false);
+    assert.match(kq.lyDo!, /[Vv]òng đầu/);
+  });
+
+  it("không đủ tiền hay hộp hết nhà thì bậc đó bị chặn", () => {
+    const o = timO("Đồng Văn");
+    const { doc } = banTrang();
+
+    // Đủ tiền mua đất nhưng không đủ để kèm nhà.
+    const vuaDu = giaMua(o);
+    assert.strictEqual(coTheMuaBac(doc, o.i, vuaDu, 32, 0, 9).ok, true);
+    assert.strictEqual(coTheMuaBac(doc, o.i, vuaDu, 32, 1, 9).ok, false);
+
+    // Hộp chỉ còn một căn thì không kèm được hai.
+    assert.strictEqual(coTheMuaBac(doc, o.i, 99_999_999, 1, 1, 9).ok, true);
+    assert.strictEqual(coTheMuaBac(doc, o.i, 99_999_999, 1, 2, 9).ok, false);
+  });
+
+  it("ô biển mua được nhưng không kèm nhà", () => {
+    const bien = BAN_CO.find((x) => x.loai === "bien")!;
+    const { doc } = banTrang();
+    assert.strictEqual(coTheMuaBac(doc, bien.i, 99_999_999, 32, 0, 9).ok, true);
+    const kq = coTheMuaBac(doc, bien.i, 99_999_999, 32, 1, 9);
+    assert.strictEqual(kq.ok, false);
+    assert.match(kq.lyDo!, /không xây nhà/);
+  });
+
+  it("mua kèm nhà thì trừ đúng tiền, đặt đúng bậc và rút đúng số nhà khỏi hộp", async () => {
+    const { room, a, b } = await vanHaiNguoi();
+    const phong: any = room;
+    const sid = room.state.luotCua;
+    const client = sid === a.sessionId ? a : b;
+    const p = room.state.nguoiChoi.get(sid)!;
+
+    // Dựng sẵn tình huống: đang đứng ở một ô đất trống, chờ quyết định.
+    // Hạ cờ lễ hội ở ô này để phép tính không phụ thuộc may rủi đầu ván.
+    const o = timO("Đồng Văn");
+    room.state.o[o.i].leHoi = false;
+    room.state.o[o.i].leHoiToanQuoc = false;
+    p.viTri = o.i;
+    p.soVong = 2;
+    phong.xuLyO(sid);
+    assert.ok(room.state.hanhDong.split(",").includes("mua"));
+
+    const tienTruoc = p.tien;
+    const nhaTruoc = room.state.nhaConLai;
+    client.send("mua", { bac: 2 });
+    await room.waitForNextPatch();
+
+    assert.strictEqual(room.state.o[o.i].chu, sid);
+    assert.strictEqual(room.state.o[o.i].nha, 2);
+    assert.strictEqual(p.tien, tienTruoc - (giaMua(o) + 2 * giaXay(o)));
+    assert.strictEqual(room.state.nhaConLai, nhaTruoc - 2);
+  });
+
   /* ------------------------------------------------ ô Du lịch xuyên Việt */
 
   it("ô Du lịch chỉ cho chọn ô đất hoặc ô biển, không cho ô góc hay ô thẻ", async () => {

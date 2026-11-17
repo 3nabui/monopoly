@@ -120,6 +120,8 @@ export interface KetNoi {
   room: Room;
   sid: string;
   gui(hanhDong: HanhDongGui): void;
+  /** Mua ô đang đứng, kèm `bac` căn nhà dựng luôn lúc mua (0 là mua đất suông). */
+  mua(bac: number): void;
   xay(o?: number): void;
   /** Bán bớt một bậc công trình, hoặc thế chấp ô nếu đã hết nhà. */
   ban(o: number): void;
@@ -200,6 +202,7 @@ function ganPhong(room: Room, opt: TuyChonKetNoi): KetNoi {
     room,
     sid: room.sessionId,
     gui: (hanhDong) => room.send(hanhDong as any),
+    mua: (bac) => room.send("mua" as any, { bac }),
     xay: (o) => room.send("xay" as any, o === undefined ? {} : { o }),
     ban: (o) => room.send("ban" as any, { o }),
     chon: (o) => room.send("chon" as any, { o }),

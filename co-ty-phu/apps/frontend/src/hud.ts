@@ -1,9 +1,9 @@
 import {
   BAC_KHACH_SAN, BAN_CO, DON_VI, MAU_NGUOI_CHOI, NHOM, SO_BIEN, SO_NHOM_THANG,
-  HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC,
-  bangThue, bangThueBien, coTheBan, coTheXay, dinhDang, giaMua, giaMuaDut,
-  giaMuaThucTe, giaTheChap, giaXay, heSoLeHoi, mauCuaO, oMuaDutDuoc, tenLeHoi,
-  tenLoaiO,
+  BAC_MUA_TOI_DA, HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC,
+  bangThue, bangThueBien, coTheBan, coTheMuaBac, coTheXay, dinhDang, giaMua,
+  giaMuaDut, giaMuaKemNha, giaMuaThucTe, giaTheChap, giaXay, heSoLeHoi, mauCuaO,
+  oMuaDutDuoc, tenLeHoi, tenLoaiO,
 } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
 
@@ -27,6 +27,8 @@ export interface HudCallbacks {
   onSanSang(): void;
   onTung(): void;
   onHanhDong(hd: string): void;
+  /** Mua ô đang đứng kèm `bac` căn nhà (0 là mua đất suông). */
+  onMua(bac: number): void;
   onXay(o?: number): void;
   /** Bán bớt một bậc công trình ở ô, hoặc thế chấp ô nếu đã hết nhà. */
   onBan(o: number): void;
@@ -51,6 +53,10 @@ export class Hud {
   private congBoTimer?: number;
   private lanTungCu = -1;
   private xucXacTimer: number[] = [];
+  /** Kết quả gieo đang đợi xúc xắc lăn xong mới được hiện. */
+  private ketXucXacCho: { xx1: number; xx2: number; sid: string } | null = null;
+  /** Xúc xắc còn đang lăn: giữ bảng hành động lại cho tới khi có kết quả. */
+  private dangLanXucXac = false;
   private khoaQuyet = "";
   private phongDangHoi = "";
   private nguoiDung: { id: string; ten: string; anh?: string } | null = null;
@@ -224,9 +230,12 @@ export class Hud {
     this.veCho(anh);
     this.veNguoiChoi(anh, dau);
     this.veCongBo(anh, dau);
+    // veKetXucXac phải chạy TRƯỚC vePanel: nó dựng cờ "xúc xắc đang lăn" mà
+    // vePanel dựa vào để giữ bảng hành động lại. Chạy sau thì bảng kịp hiện
+    // ra một nhịp rồi mới bị giữ, thành ra chẳng giữ được gì.
+    this.veKetXucXac(anh, dau);
     this.vePanel(anh);
     this.veNutXay(anh);
-    this.veKetXucXac(anh, dau);
     this.veKetThuc(anh);
 
     const toi = anh.nguoiChoi.find((p) => p.sid === this.sid);
@@ -452,28 +461,42 @@ export class Hud {
     // sẽ thấy lại cú tung của lượt trước.
     if (dau || dauTien || anh.soLanTung === 0 || anh.xx1 <= 0) return;
 
+    // Chỉ ghi nhận thôi. Bàn cờ 3D gọi hienKetXucXac() khi hai con xúc xắc
+    // thật sự dừng lăn, nên con số không bao giờ hiện trước quân xúc xắc.
+    this.ketXucXacCho = { xx1: anh.xx1, xx2: anh.xx2, sid: anh.luotCua };
+    this.dangLanXucXac = true;
+  }
+
+  /** Bàn cờ gọi hàm này lúc xúc xắc vừa dừng. */
+  hienKetXucXac() {
+    this.dangLanXucXac = false;
+    const kq = this.ketXucXacCho;
+    this.ketXucXacCho = null;
+    if (!kq || !this.anh) return;
+
     for (const t of this.xucXacTimer) clearTimeout(t);
     this.xucXacTimer = [];
 
-    const nguoi = anh.nguoiChoi.find((p) => p.sid === anh.luotCua);
+    const nguoi = this.anh.nguoiChoi.find((p) => p.sid === kq.sid);
     const mau = nguoi ? MAU_NGUOI_CHOI[nguoi.mau % 4] : "var(--panel-sub)";
     const el = $("ketXucXac");
 
-    this.xucXacTimer.push(window.setTimeout(() => {
-      el.style.setProperty("--kx-mau", mau);
-      $("kxAi").textContent = nguoi
-        ? (nguoi.sid === this.sid ? "Bạn tung" : `${nguoi.ten} tung`)
-        : "Xúc xắc";
-      $("kxA").textContent = String(anh.xx1);
-      $("kxB").textContent = String(anh.xx2);
-      $("kxTong").textContent = `= ${anh.xx1 + anh.xx2}`;
-      $("kxDoi").hidden = anh.xx1 !== anh.xx2;
-      el.hidden = true;
-      void el.offsetWidth;   // khởi động lại hoạt ảnh nếu thẻ còn đang hiện
-      el.hidden = false;
-    }, 760));
+    el.style.setProperty("--kx-mau", mau);
+    $("kxAi").textContent = nguoi
+      ? (nguoi.sid === this.sid ? "Bạn tung" : `${nguoi.ten} tung`)
+      : "Xúc xắc";
+    $("kxA").textContent = String(kq.xx1);
+    $("kxB").textContent = String(kq.xx2);
+    $("kxTong").textContent = `= ${kq.xx1 + kq.xx2}`;
+    $("kxDoi").hidden = kq.xx1 !== kq.xx2;
+    el.hidden = true;
+    void el.offsetWidth;   // khởi động lại hoạt ảnh nếu thẻ còn đang hiện
+    el.hidden = false;
 
-    this.xucXacTimer.push(window.setTimeout(() => { el.hidden = true; }, 3400));
+    this.xucXacTimer.push(window.setTimeout(() => { el.hidden = true; }, 2600));
+
+    // Bảng hành động bị giữ lại trong lúc xúc xắc lăn, giờ vẽ bù.
+    this.vePanel(this.anh);
   }
 
   /**
@@ -567,7 +590,10 @@ export class Hud {
     // trả, và chọn ô cho thẻ cơ hội.
     const dangCho =
       anh.giaiDoan === "quyet" || anh.giaiDoan === "gom" || anh.giaiDoan === "chon";
-    if (!dangCho || !cuaToi || anh.hanhDong.length === 0) {
+    // Xúc xắc còn lăn thì chưa bày bảng hành động: người chơi phải thấy ra
+    // mấy điểm trước đã, chứ không phải đọc "Sa Pa chưa có chủ" trong khi
+    // quân cờ còn đứng ở ô cũ.
+    if (!dangCho || !cuaToi || anh.hanhDong.length === 0 || this.dangLanXucXac) {
       ap.classList.remove("show");
       window.setTimeout(() => { if (!ap.classList.contains("show")) ap.hidden = true; }, 220);
       if (this.boDemTimer) { clearInterval(this.boDemTimer); this.boDemTimer = undefined; }
@@ -688,7 +714,26 @@ export class Hud {
       them("Để server tự bán", "pri", () => this.cb.onHanhDong("tudong"));
     } else {
       if (anh.hanhDong.includes("mua") && o && tt) {
-        them(`MUA ${dinhDang(giaMuaThucTe(o, tt))}`, "pri", () => this.cb.onHanhDong("mua"));
+        // Mỗi bậc một nút: mua đất suông, hoặc mua kèm luôn 1–3 căn nhà.
+        // Bậc nào không đủ tiền hay vướng luật vòng đầu thì mờ đi kèm lý do.
+        const toi = anh.nguoiChoi.find((x) => x.sid === this.sid);
+        const docO = (k: number) => anh.o[k];
+        const bacToiDa = o.loai === "dat" ? BAC_MUA_TOI_DA : 0;
+        for (let bac = 0; bac <= bacToiDa; bac++) {
+          const kq = coTheMuaBac(
+            docO, i, toi?.tien ?? 0, anh.nhaConLai, bac, toi?.soVong ?? 99,
+          );
+          const nhan = bac === 0 ? "MUA ĐẤT" : `${bac} NHÀ`;
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = `btn ${bac === 0 ? "pri" : "gh"} muabac`;
+          b.disabled = !kq.ok;
+          b.title = kq.ok ? "" : kq.lyDo ?? "";
+          b.innerHTML = `<span class="bac">${nhan}</span>`
+            + `<span class="gia">${dinhDang(giaMuaKemNha(o, tt, bac))}</span>`;
+          if (kq.ok) b.addEventListener("click", () => this.cb.onMua(bac));
+          btns.appendChild(b);
+        }
       }
       if (anh.hanhDong.includes("muadut") && o && tt) {
         them(`MUA ĐỨT ${dinhDang(giaMuaDut(o, tt))}`, "pri", () => this.cb.onHanhDong("muadut"));
@@ -892,6 +937,8 @@ export class Hud {
     for (const t of this.xucXacTimer) clearTimeout(t);
     this.xucXacTimer = [];
     this.lanTungCu = -1;
+    this.ketXucXacCho = null;
+    this.dangLanXucXac = false;
     this.congBoCu = -1;
     if (this.congBoTimer) { clearTimeout(this.congBoTimer); this.congBoTimer = undefined; }
     $("players").innerHTML = "";
