@@ -14,9 +14,9 @@
   /* Màu no hơn hẳn bản cũ. Đây là chỗ để chỉnh độ rực của bàn cờ — tăng
      bão hoà ở đây an toàn, còn tăng phơi sáng trong board3d thì bàn cờ bạc
      trắng ra. */
-  --sky-1: #1b8ae0; --sky-2: #5fc4f7; --sky-3: #cceeff;
-  --grass: #68cf3d; --grass-2: #4fb82b; --kerb: #f0e2b4;
-  --slab-top: #4f8fd4; --slab-side: #2f6cb0; --slab-deep: #1f4e86; --rock: #17406e;
+  --sky-1: #0d84e8; --sky-2: #46bdfb; --sky-3: #c6ecff;
+  --grass: #5ada25; --grass-2: #3fc415; --kerb: #ffe6a8;
+  --slab-top: #3e92e6; --slab-side: #1f6fc4; --slab-deep: #114e95; --rock: #0b3f7a;
   --panel: rgba(255, 255, 255, .95); --panel-ink: #13203a; --panel-sub: #5a6a84;
   --panel-line: #dde5f1; --panel-shadow: rgba(18, 40, 78, .2);
   --accent: #e02f52; --accent-ink: #fff; --gold: #f5b821;

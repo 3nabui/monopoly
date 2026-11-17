@@ -3,6 +3,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import {
   BAC_KHACH_SAN, BAN_CO, MAU_NGUOI_CHOI, SO_O, mauCuaO, tenLoaiO,
 } from "@co-ty-phu/shared";
@@ -85,12 +86,51 @@ function khoi(geo: THREE.BufferGeometry, mat: THREE.Material, x = 0, y = 0, z = 
   return m;
 }
 
+/**
+ * Khâu hậu kỳ đẩy độ bão hoà của cả khung hình.
+ *
+ * Đây mới là cách đúng để bàn cờ rực hơn. Tăng phơi sáng hay cường độ đèn thì
+ * ảnh sáng lên chứ không rực lên, và vượt ngưỡng là các kênh màu bị cắt ngọn
+ * khiến mọi thứ bạc trắng — đã mắc đúng lỗi đó một lần. Ở đây chỉ kéo màu ra
+ * xa trục xám, độ sáng giữ nguyên nên không có gì bị cắt.
+ *
+ * Chạy trước OutputPass, tức vẫn trong không gian tuyến tính, nên dùng trọng
+ * số sáng tuyến tính (Rec. 709) chứ không phải trọng số của sRGB.
+ */
+const ShaderBaoHoa = {
+  uniforms: {
+    tDiffuse: { value: null as THREE.Texture | null },
+    mucBaoHoa: { value: 1.0 },
+    mucTuongPhan: { value: 1.0 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float mucBaoHoa;
+    uniform float mucTuongPhan;
+    varying vec2 vUv;
+    void main() {
+      vec4 mau = texture2D(tDiffuse, vUv);
+      float sang = dot(mau.rgb, vec3(0.2126, 0.7152, 0.0722));
+      vec3 ra = mix(vec3(sang), mau.rgb, mucBaoHoa);
+      ra = (ra - 0.5) * mucTuongPhan + 0.5;
+      gl_FragColor = vec4(max(ra, 0.0), mau.a);
+    }
+  `,
+};
+
 /** Làm màu công trình đậm và ấm hơn để nổi trên nền bàn cờ xanh xám. */
 function damMau(c: THREE.Color) {
   const hsl = { h: 0, s: 0, l: 0 };
   c.getHSL(hsl);
-  if (hsl.s < 0.07) c.setHSL(0.095, 0.16, Math.min(0.88, hsl.l * 0.93));
-  else c.setHSL(hsl.h, Math.min(1, hsl.s * 1.55), Math.max(0.12, Math.min(0.78, hsl.l * 0.88)));
+  if (hsl.s < 0.07) c.setHSL(0.095, 0.2, Math.min(0.88, hsl.l * 0.93));
+  else c.setHSL(hsl.h, Math.min(1, hsl.s * 1.8), Math.max(0.12, Math.min(0.76, hsl.l * 0.86)));
 }
 
 function css(name: string): string {
@@ -901,6 +941,7 @@ export class BanCo3D {
   private camera: THREE.OrthographicCamera;
   private composer!: EffectComposer;
   private bloom!: UnrealBloomPass;
+  private baoHoa!: ShaderPass;
   private pmrem: THREE.PMREMGenerator;
   private envRT: THREE.WebGLRenderTarget | null = null;
 
@@ -1185,6 +1226,12 @@ export class BanCo3D {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(s, 0.22, 0.6, 0.85);
     this.composer.addPass(this.bloom);
+
+    // Hai con số để chỉnh độ rực của cả bàn cờ. 1.0 là giữ nguyên.
+    this.baoHoa = new ShaderPass(ShaderBaoHoa);
+    this.baoHoa.uniforms.mucBaoHoa.value = 1.42;
+    this.baoHoa.uniforms.mucTuongPhan.value = 1.08;
+    this.composer.addPass(this.baoHoa);
     // OutputPass lo tone mapping và chuyển sang sRGB ở cuối chuỗi, nên quầng
     // sáng được tính trong không gian tuyến tính — đúng về mặt vật lý.
     this.composer.addPass(new OutputPass());
