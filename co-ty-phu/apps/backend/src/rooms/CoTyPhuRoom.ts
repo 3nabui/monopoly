@@ -302,11 +302,24 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     xay: (client: Client, tin: { o?: number } = {}) => {
       const p = this.state.nguoiChoi.get(client.sessionId);
       if (!p || p.phaSan) return;
-      if (this.state.giaiDoan !== "quyet" && this.state.giaiDoan !== "tung") return;
+
+      // Trước đây mấy nhánh dưới đây chỉ `return` lặng lẽ: người chơi bấm nút
+      // xây rồi ngồi nhìn, không có gì xảy ra và cũng không biết vì sao.
+      if (this.state.giaiDoan === "cho" || this.state.giaiDoan === "ketthuc") {
+        client.send("loi", { thongBao: "Ván chưa chạy, chưa xây được." });
+        return;
+      }
+      if (this.state.giaiDoan !== "quyet" && this.state.giaiDoan !== "tung") {
+        client.send("loi", { thongBao: "Đang chờ người khác quyết định, xây sau nhé." });
+        return;
+      }
 
       const i = typeof tin.o === "number" ? tin.o : this.state.oChoQuyet;
       const o = BAN_CO[i];
-      if (!o) return;
+      if (!o) {
+        client.send("loi", { thongBao: "Ô không hợp lệ." });
+        return;
+      }
 
       const kq = coTheXay(
         this.doc, i, client.sessionId, p.tien,
@@ -565,6 +578,7 @@ export class CoTyPhuRoom extends Room<{ state: GameState }> {
     const [a, b] = gieoXucXac();
     this.state.xx1 = a;
     this.state.xx2 = b;
+    this.state.soLanTung = (this.state.soLanTung + 1) % 60_000;
     const tong = a + b;
     const doi = a === b;
 

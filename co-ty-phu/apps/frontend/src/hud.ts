@@ -2,8 +2,9 @@ import {
   BAC_KHACH_SAN, BAN_CO, DON_VI, MAU_NGUOI_CHOI, NHOM, SO_BIEN, SO_NHOM_THANG,
   THU_TU_NHOM,
   HE_SO_LE_HOI, HE_SO_LE_HOI_TOAN_QUOC,
-  bangThue, bangThueBien, coTheBan, dinhDang, giaMua, giaMuaDut, giaMuaThucTe,
-  giaTheChap, giaXay, heSoLeHoi, mauCuaO, oMuaDutDuoc, tenLeHoi, tenLoaiO,
+  bangThue, bangThueBien, coTheBan, coTheXay, dinhDang, giaMua, giaMuaDut,
+  giaMuaThucTe, giaTheChap, giaXay, heSoLeHoi, mauCuaO, oMuaDutDuoc, tenLeHoi,
+  tenLoaiO,
 } from "@co-ty-phu/shared";
 import type { AnhChup } from "./state.js";
 
@@ -50,6 +51,8 @@ export class Hud {
   private boDemTimer?: number;
   private congBoCu = -1;
   private congBoTimer?: number;
+  private lanTungCu = -1;
+  private xucXacTimer: number[] = [];
   private khoaQuyet = "";
   private phongDangHoi = "";
   private nguoiDung: { id: string; ten: string; anh?: string } | null = null;
@@ -165,6 +168,12 @@ export class Hud {
 
   private ganSuKien() {
     $("btnChoi").addEventListener("click", () => this.cb.onChoi());
+    $("btnXay").addEventListener("click", () => {
+      const el = $("bangXay");
+      el.hidden = !el.hidden;
+      if (!el.hidden && this.anh) this.veBangXay(this.anh);
+    });
+    $("bxDong").addEventListener("click", () => { $("bangXay").hidden = true; });
     $("btnQuayLai").addEventListener("click", () => this.cb.onQuayLaiThamQuan());
     $("btnGoogle").addEventListener("click", () => {
       ($("btnGoogle") as HTMLButtonElement).disabled = true;
@@ -252,6 +261,8 @@ export class Hud {
     this.veNguoiChoi(anh, dau);
     this.veCongBo(anh, dau);
     this.vePanel(anh);
+    this.veNutXay(anh);
+    this.veKetXucXac(anh, dau);
     this.veNhatKy(anh);
     this.veKetThuc(anh);
 
@@ -375,6 +386,116 @@ export class Hud {
       el.classList.add("di");
       this.congBoTimer = window.setTimeout(() => { el.hidden = true; }, 320);
     }, 4200);
+  }
+
+  /**
+   * Bảng kết quả gieo xúc xắc, hiện cho CẢ BÀN chứ không riêng người tung.
+   *
+   * Đợi khoảng 0,75 giây cho xúc xắc trên bàn 3D lăn xong rồi mới hiện, để
+   * con số không lòi ra trước khi quân xúc xắc kịp dừng.
+   */
+  private veKetXucXac(anh: AnhChup, dau: boolean) {
+    if (anh.soLanTung === this.lanTungCu) return;
+    const dauTien = this.lanTungCu < 0;
+    this.lanTungCu = anh.soLanTung;
+    // Lần vẽ đầu sau khi vào phòng thì bỏ qua, nếu không người vào giữa ván
+    // sẽ thấy lại cú tung của lượt trước.
+    if (dau || dauTien || anh.soLanTung === 0 || anh.xx1 <= 0) return;
+
+    for (const t of this.xucXacTimer) clearTimeout(t);
+    this.xucXacTimer = [];
+
+    const nguoi = anh.nguoiChoi.find((p) => p.sid === anh.luotCua);
+    const mau = nguoi ? MAU_NGUOI_CHOI[nguoi.mau % 4] : "var(--panel-sub)";
+    const el = $("ketXucXac");
+
+    this.xucXacTimer.push(window.setTimeout(() => {
+      el.style.setProperty("--kx-mau", mau);
+      $("kxAi").textContent = nguoi
+        ? (nguoi.sid === this.sid ? "Bạn tung" : `${nguoi.ten} tung`)
+        : "Xúc xắc";
+      $("kxA").textContent = String(anh.xx1);
+      $("kxB").textContent = String(anh.xx2);
+      $("kxTong").textContent = `= ${anh.xx1 + anh.xx2}`;
+      $("kxDoi").hidden = anh.xx1 !== anh.xx2;
+      el.hidden = true;
+      void el.offsetWidth;   // khởi động lại hoạt ảnh nếu thẻ còn đang hiện
+      el.hidden = false;
+    }, 760));
+
+    this.xucXacTimer.push(window.setTimeout(() => { el.hidden = true; }, 3400));
+  }
+
+  /**
+   * Những ô mình đang xây thêm được ngay lúc này, kèm lý do nếu không.
+   *
+   * Dùng đúng hàm luật coTheXay mà server dùng, nên nút bấm không bao giờ
+   * hứa một việc mà server sẽ từ chối.
+   */
+  private oXayDuoc(anh: AnhChup) {
+    const toi = anh.nguoiChoi.find((p) => p.sid === this.sid);
+    if (!toi) return [];
+    const doc = (k: number) => anh.o[k];
+    return BAN_CO
+      .filter((o) => o.loai === "dat" && anh.o[o.i]?.chu === this.sid)
+      .map((o) => ({
+        o,
+        tt: anh.o[o.i],
+        kq: coTheXay(doc, o.i, this.sid, toi.tien, anh.nhaConLai, anh.khachSanConLai, toi.soVong),
+      }));
+  }
+
+  /**
+   * Nút XÂY NHÀ cạnh nút tung xúc xắc.
+   *
+   * Trước đây muốn xây phải tình cờ dừng lại đúng ô của mình, nên luật "vòng
+   * đầu được xây tới 2 nhà" gần như không ai dùng tới được.
+   */
+  private veNutXay(anh: AnhChup) {
+    const btn = $("btnXay") as HTMLButtonElement;
+    const dangChoi = anh.giaiDoan === "tung" || anh.giaiDoan === "quyet";
+    const coO = BAN_CO.some((o) => o.loai === "dat" && anh.o[o.i]?.chu === this.sid);
+
+    btn.hidden = !(dangChoi && coO);
+    if (btn.hidden) { $("bangXay").hidden = true; return; }
+
+    const xayDuoc = this.oXayDuoc(anh).filter((x) => x.kq.ok).length;
+    btn.disabled = xayDuoc === 0;
+    btn.textContent = xayDuoc > 0 ? `XÂY NHÀ (${xayDuoc})` : "XÂY NHÀ";
+    if (!$("bangXay").hidden) this.veBangXay(anh);
+  }
+
+  private veBangXay(anh: AnhChup) {
+    const ds = this.oXayDuoc(anh);
+    const toi = anh.nguoiChoi.find((p) => p.sid === this.sid);
+    const vongDau = (toi?.soVong ?? 9) <= 1;
+
+    $("bxSub").textContent = vongDau
+      ? "Vòng đầu chỉ xây được tới 2 nhà. Qua Xuất phát rồi xây tiếp."
+      : "Bấm vào ô để xây thêm một bậc.";
+
+    const wrap = $("bxDs");
+    if (ds.length === 0) {
+      wrap.innerHTML = '<p class="trong">Bạn chưa có ô đất nào.</p>';
+      return;
+    }
+
+    wrap.innerHTML = "";
+    for (const { o, tt, kq } of ds) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "o";
+      b.disabled = !kq.ok;
+      b.title = kq.ok ? "" : kq.lyDo ?? "";
+      const bac = tt.nha >= BAC_KHACH_SAN ? "khách sạn" : `${tt.nha} nhà`;
+      b.innerHTML = `<span class="sw" style="background:${mauCuaO(o)}"></span>
+        <span class="nm">${this.thoat(o.ten)}<br><span class="bac">${bac}${
+          kq.ok ? "" : ` · ${this.thoat(kq.lyDo ?? "")}`
+        }</span></span>
+        ${kq.ok ? `<span class="gia">${Math.round(giaXay(o) / DON_VI)}K</span>` : ""}`;
+      if (kq.ok) b.addEventListener("click", () => this.cb.onXay(o.i));
+      wrap.appendChild(b);
+    }
   }
 
   private bayTien(el: HTMLElement, delta: number) {
@@ -642,11 +763,24 @@ export class Hud {
     $("tcTable").innerHTML = rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
 
     // Nút nhanh khi đó là ô của mình: xây thêm bậc, hoặc bán bớt để xoay tiền.
+    // Nút xây mang luôn lý do khi không xây được, thay vì bấm xong không
+    // thấy gì xảy ra như trước.
     const nutXay = $("tcXay") as HTMLButtonElement;
     const cuaToi = tt?.chu === this.sid;
     nutXay.hidden = !(cuaToi && o.loai === "dat");
-    if (cuaToi && o.loai === "dat") {
-      nutXay.textContent = `Xây thêm một bậc (${Math.round(giaXay(o) / DON_VI)}K)`;
+    if (cuaToi && o.loai === "dat" && anh) {
+      const toi = anh.nguoiChoi.find((x) => x.sid === this.sid);
+      const kq = coTheXay(
+        (k: number) => anh.o[k], i, this.sid,
+        toi?.tien ?? 0, anh.nhaConLai, anh.khachSanConLai, toi?.soVong ?? 99,
+      );
+      const dangChoi = anh.giaiDoan === "tung" || anh.giaiDoan === "quyet";
+      nutXay.disabled = !kq.ok || !dangChoi;
+      nutXay.textContent = kq.ok
+        ? (dangChoi
+            ? `Xây thêm một bậc (${Math.round(giaXay(o) / DON_VI)}K)`
+            : "Chờ tới lượt rồi xây")
+        : kq.lyDo!;
       nutXay.onclick = () => { this.cb.onXay(i); this.dongTheO(); };
     }
 
@@ -690,7 +824,12 @@ export class Hud {
     this.tienCu.clear();
     $("manCho").hidden = true;
     $("actpanel").hidden = true;
+    $("bangXay").hidden = true;
     $("reveal").hidden = true;
+    $("ketXucXac").hidden = true;
+    for (const t of this.xucXacTimer) clearTimeout(t);
+    this.xucXacTimer = [];
+    this.lanTungCu = -1;
     this.congBoCu = -1;
     if (this.congBoTimer) { clearTimeout(this.congBoTimer); this.congBoTimer = undefined; }
     $("players").innerHTML = "";

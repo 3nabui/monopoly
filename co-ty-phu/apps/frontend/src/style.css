@@ -1,4 +1,15 @@
 /* Bố cục: bàn cờ đẳng cự cố định giữa màn hình, HUD nổi ở 4 góc và cột trái */
+
+/*
+ * Thuộc tính hidden của HTML chỉ đặt display:none ở mức mặc định của trình
+ * duyệt, nên bất cứ lớp nào khai display: flex/grid/block đều âm thầm ghi đè
+ * nó. Lỗi này đã cắn ba lần: thanh tung xúc xắc lòi ra ở màn tham quan, và
+ * bảng tiền thuê của ô đất cũ còn nằm lại khi dừng ở ô góc.
+ *
+ * Một dòng ở đây dập tắt cả lớp lỗi, kể cả cho những phần tử thêm sau này.
+ */
+[hidden] { display: none !important; }
+
 :root {
   --sky-1: #2e94d8; --sky-2: #78c8ef; --sky-3: #cdeeff;
   --grass: #78c553; --grass-2: #68b445; --kerb: #e4d9b8;
@@ -217,6 +228,7 @@ canvas#scene { display: block; width: 100%; height: 100%; touch-action: manipula
 .tilecard td:last-child { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 .tilecard tr + tr td { border-top: 1px solid var(--panel-line); }
 .tilecard .close { margin-top: 13px; width: 100%; padding: 10px; border-radius: 11px; border: 1px solid var(--panel-line); background: transparent; color: var(--panel-sub); font-weight: 600; font-size: 12.5px; cursor: pointer; font-family: inherit; }
+.tilecard .close:disabled { opacity: .5; cursor: default; }
 .tilecard .close:hover { background: var(--panel-line); }
 
 /* ---------- lớp phủ: sảnh chờ, kết thúc, lỗi ---------- */
@@ -455,3 +467,95 @@ canvas#scene { display: block; width: 100%; height: 100%; touch-action: manipula
   .thamquan .choi { padding: 13px 34px; font-size: 17px; }
   .thamquan .loi { font-size: 11.5px; }
 }
+
+/* ------------------------------------------------------------ bảng xây nhà
+   Trước đây muốn xây phải tình cờ dừng đúng ô của mình, hoặc mò vào thẻ
+   thông tin ô. Giờ tới lượt là có nút, bấm ra danh sách ô xây được. */
+.actionbar .build {
+  padding: 13px 22px; border: 0; border-radius: 999px; cursor: pointer;
+  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 14px;
+  letter-spacing: .03em;
+  background: var(--panel); color: var(--panel-ink);
+  border: 1px solid var(--panel-line);
+  box-shadow: 0 8px 20px var(--panel-shadow);
+}
+.actionbar .build[hidden] { display: none !important; }
+.actionbar .build:disabled { filter: grayscale(.5) opacity(.45); cursor: default; }
+.actionbar .build:not(:disabled):hover { transform: translateY(-1px); }
+
+.buildpanel {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px)); z-index: 7;
+  width: min(330px, 86vw); max-height: 46vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--panel-line);
+  border-radius: 18px; padding: 14px; box-shadow: 0 22px 54px var(--panel-shadow);
+}
+.buildpanel[hidden] { display: none !important; }
+
+.buildpanel .hd {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 16px;
+  color: var(--panel-ink);
+}
+.buildpanel .hd button {
+  border: 0; background: transparent; cursor: pointer; font-size: 15px;
+  color: var(--panel-sub); padding: 2px 6px;
+}
+.buildpanel .sub { margin: 4px 0 10px; font-size: 12px; line-height: 1.45; color: var(--panel-sub); }
+.buildpanel .ds { display: flex; flex-direction: column; gap: 7px; }
+
+.buildpanel .o {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 9px 11px; border-radius: 12px; cursor: pointer; text-align: left;
+  border: 1px solid var(--panel-line); background: transparent;
+  color: var(--panel-ink); font-family: inherit; font-size: 13.5px; font-weight: 600;
+}
+.buildpanel .o:hover:not(:disabled) { background: var(--panel-line); }
+.buildpanel .o:disabled { opacity: .45; cursor: default; }
+.buildpanel .o .sw { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; }
+.buildpanel .o .nm { flex: 1; }
+.buildpanel .o .bac { font-size: 11px; color: var(--panel-sub); font-weight: 700; }
+.buildpanel .o .gia { font-weight: 800; font-variant-numeric: tabular-nums; }
+.buildpanel .trong { font-size: 12.5px; line-height: 1.5; color: var(--panel-sub); }
+
+/* ------------------------------------------------- kết quả gieo xúc xắc
+   Hiện cho cả bàn, không riêng người tung. Nằm phía trên bàn cờ để không
+   chạm vào tấm thẻ công bố ở giữa hay thanh nút ở đáy. */
+.dicekq {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  top: calc(56px + env(safe-area-inset-top, 0px)); z-index: 7;
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 15px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--panel-line);
+  box-shadow: 0 14px 34px var(--panel-shadow);
+  animation: kxVao .3s cubic-bezier(.2, 1.4, .4, 1);
+  pointer-events: none;
+}
+.dicekq[hidden] { display: none !important; }
+
+@keyframes kxVao {
+  from { transform: translateX(-50%) translateY(-10px) scale(.9); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+
+.dicekq .ai {
+  font-size: 12px; font-weight: 800; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--kx-mau, var(--panel-sub));
+}
+.dicekq .so {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; border-radius: 9px;
+  background: #fbfcfe; color: #d93b4e;
+  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 18px;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .12);
+}
+.dicekq .tong {
+  font-family: "Baloo 2", sans-serif; font-weight: 800; font-size: 17px;
+  color: var(--panel-ink);
+}
+.dicekq .doi {
+  font-size: 10.5px; font-weight: 800; letter-spacing: .08em;
+  color: var(--accent-ink); background: var(--accent);
+  padding: 3px 8px; border-radius: 999px;
+}
+.dicekq .doi[hidden] { display: none !important; }

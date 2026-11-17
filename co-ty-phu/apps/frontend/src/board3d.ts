@@ -880,6 +880,16 @@ export class BanCo3D {
   private coLeHoi = new Map<number, THREE.Group>();
   private quan = new Map<string, Quan>();
   private dice: THREE.Mesh[] = [];
+  /** Độ cao nghỉ của hai con xúc xắc, để thả về đúng chỗ sau khi nảy. */
+  private diceY: number[] = [];
+  /**
+   * Hoạt ảnh gieo: tungT chạy từ 0 tới 1 rồi dừng. Bằng 1 nghĩa là không có
+   * hoạt ảnh nào đang chạy.
+   */
+  private tungT = 1;
+  private tungDich: [number, number] = [1, 1];
+  private tungQuay: { x: number; y: number; z: number }[] = [];
+  private lanTungCu = -1;
   private may: THREE.Sprite[] = [];
   private cocTien: THREE.Group[] = [];
 
@@ -1079,6 +1089,7 @@ export class BanCo3D {
       m.position.set(i ? 1.35 : -1.35, 0.72, i ? 0.95 : -0.45);
       m.castShadow = true;
       this.world.add(m);
+      this.diceY[i] = m.position.y;
       return m;
     });
 
@@ -1206,9 +1217,37 @@ export class BanCo3D {
 
     // xúc xắc
     if (anh.xx1 > 0 && anh.xx2 > 0) {
-      this.datMatXucXac(this.dice[0], anh.xx1);
-      this.datMatXucXac(this.dice[1], anh.xx2);
+      if (anh.soLanTung !== this.lanTungCu) {
+        // Lần gieo mới: chạy hoạt ảnh. Mọi client đều thấy vì soLanTung nằm
+        // trong state, không phải hiệu ứng cục bộ của riêng người tung.
+        const dau = this.lanTungCu < 0;
+        this.lanTungCu = anh.soLanTung;
+        if (dau) {
+          // Người mới vào giữa ván thì đặt luôn mặt cuối, khỏi gieo lại một
+          // lần tung đã xảy ra từ trước.
+          this.datMatXucXac(this.dice[0], anh.xx1);
+          this.datMatXucXac(this.dice[1], anh.xx2);
+        } else {
+          this.gieoXucXac(anh.xx1, anh.xx2);
+        }
+      } else if (this.tungT >= 1) {
+        this.datMatXucXac(this.dice[0], anh.xx1);
+        this.datMatXucXac(this.dice[1], anh.xx2);
+      }
     }
+  }
+
+  /** Bắt đầu hoạt ảnh gieo, kết thúc đúng hai mặt server đã chốt. */
+  private gieoXucXac(a: number, b: number) {
+    this.tungT = 0;
+    this.tungDich = [a, b];
+    // Mỗi con một trục quay riêng, nếu không hai con quay y hệt nhau trông
+    // như một khối.
+    this.tungQuay = this.dice.map(() => ({
+      x: (Math.random() * 2 - 1) * 16 + 10,
+      y: (Math.random() * 2 - 1) * 16 + 10,
+      z: (Math.random() * 2 - 1) * 16 + 10,
+    }));
   }
 
   private taoQuan(mauIdx: number): THREE.Group {
@@ -1542,6 +1581,29 @@ export class BanCo3D {
       const u = s.userData;
       u.a += u.sp;
       s.position.set(Math.cos(u.a) * u.r, u.y + Math.sin(this.dong * 0.35 + u.ph) * 0.35, Math.sin(u.a) * u.r);
+    }
+
+    // xúc xắc đang gieo: quay nhanh rồi chậm dần, nảy hai nhịp rồi nằm im
+    if (this.tungT < 1) {
+      this.tungT = Math.min(1, this.tungT + 0.022);
+      const t = this.tungT;
+      const cham = (1 - t) ** 1.6;
+      this.dice.forEach((m, i) => {
+        const q = this.tungQuay[i];
+        if (q) {
+          m.rotation.x += q.x * 0.016 * cham;
+          m.rotation.y += q.y * 0.016 * cham;
+          m.rotation.z += q.z * 0.016 * cham;
+        }
+        const nay = Math.abs(Math.sin(t * Math.PI * 2.3)) * (1 - t) * 2.6;
+        m.position.y = (this.diceY[i] ?? 0.72) + nay;
+      });
+      if (this.tungT >= 1) {
+        // Chốt đúng mặt mà server đã gieo.
+        this.datMatXucXac(this.dice[0], this.tungDich[0]);
+        this.datMatXucXac(this.dice[1], this.tungDich[1]);
+        this.dice.forEach((m, i) => { m.position.y = this.diceY[i] ?? 0.72; });
+      }
     }
 
     // quân cờ nhảy từng ô một

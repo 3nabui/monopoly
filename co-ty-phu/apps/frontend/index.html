@@ -39,10 +39,31 @@
 
         <div class="actionbar" id="thanhHanhDong" hidden>
           <button class="roll" id="btnRoll" type="button" disabled>TUNG XÚC XẮC</button>
+          <button class="build" id="btnXay" type="button" hidden>XÂY NHÀ</button>
           <div class="dicebox" id="diceOut">Đang kết nối…</div>
         </div>
 
-        <!-- Tấm thẻ công bố giữa màn hình, mọi người chơi đều thấy giống nhau. -->
+        <!-- Danh sách ô xây được, mở từ nút XÂY NHÀ. Không phải chờ dừng
+             đúng ô của mình mới xây được nữa. -->
+        <div class="buildpanel" id="bangXay" hidden>
+          <div class="hd">
+            <span>Xây nhà</span>
+            <button type="button" id="bxDong" aria-label="Đóng">✕</button>
+          </div>
+          <p class="sub" id="bxSub"></p>
+          <div class="ds" id="bxDs"></div>
+        </div>
+
+        <!-- Kết quả gieo xúc xắc, hiện cho CẢ BÀN ngay khi xúc xắc dừng lăn. -->
+      <div class="dicekq" id="ketXucXac" hidden>
+        <span class="ai" id="kxAi"></span>
+        <span class="so" id="kxA">1</span>
+        <span class="so" id="kxB">1</span>
+        <span class="tong" id="kxTong">= 2</span>
+        <span class="doi" id="kxDoi" hidden>ĐÔI</span>
+      </div>
+
+      <!-- Tấm thẻ công bố giữa màn hình, mọi người chơi đều thấy giống nhau. -->
       <div class="reveal" id="reveal" hidden>
         <div class="card">
           <div class="who"><span class="dot" id="revDot"></span><span id="revWho"></span></div>

@@ -149,6 +149,7 @@ function doiSangAnhChup(state: any): AnhChup {
     hanLuot: state.hanLuot,
     xx1: state.xx1,
     xx2: state.xx2,
+    soLanTung: state.soLanTung ?? 0,
     oChoQuyet: state.oChoQuyet,
     tienPhaiTra: state.tienPhaiTra,
     hanhDong: state.hanhDong ? String(state.hanhDong).split(",") : [],

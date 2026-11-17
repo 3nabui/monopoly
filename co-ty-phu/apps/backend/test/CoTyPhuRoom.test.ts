@@ -605,6 +605,60 @@ describe("Phòng cờ tỷ phú", () => {
     assert.strictEqual(p.buocCuoi, 0, "dời thẳng thì client nhảy một nhịp, không đi bộ");
     void b;
   });
+  /* -------------------------------------------------- xây nhà và xúc xắc */
+
+  it("bấm xây sai lúc thì được báo lý do, không lặng thinh bỏ qua", async () => {
+    // Trước đây mấy nhánh này chỉ `return`, người chơi bấm nút xây rồi ngồi
+    // nhìn, không có gì xảy ra và cũng không biết vì sao.
+    const room = await colyseus.createRoom<GameState>("co_ty_phu", { soNguoi: 2 });
+    const a = await noi(room, "A");
+
+    const loi: string[] = [];
+    a.onMessage("loi", (tin: any) => loi.push(String(tin?.thongBao ?? "")));
+
+    a.send("xay", { o: 1 });
+    await new Promise((r) => setTimeout(r, 150));
+
+    assert.ok(loi.length > 0, "phải nói vì sao chứ không im lặng");
+    assert.match(loi[0], /chưa chạy/i);
+  });
+
+  it("mỗi lần gieo thì soLanTung tăng, kể cả khi hai lần ra cùng số", async () => {
+    const { room } = await vanHaiNguoi();
+    const phong: any = room;
+
+    // Client dựa vào con số này để chạy hoạt ảnh; nhìn riêng xx1/xx2 thì hai
+    // lần tung ra cùng số liên tiếp sẽ không phân biệt được.
+    const truoc = room.state.soLanTung;
+    phong.state.giaiDoan = "tung";
+    phong.tung(room.state.luotCua);
+    assert.strictEqual(room.state.soLanTung, truoc + 1);
+
+    phong.state.giaiDoan = "tung";
+    phong.tung(room.state.luotCua);
+    assert.strictEqual(room.state.soLanTung, truoc + 2);
+  });
+
+  it("vòng đầu vẫn xây được tới 2 nhà, chỉ chặn từ bậc 3", () => {
+    // Đúng điều luật nói: "mua đất cho đến 2 nhà ngay từ vòng đầu".
+    const { o: tt, doc } = banTrang();
+    const o = timO("Hoàn Kiếm");
+    tt[o.i].chu = "A";
+    const tien = 10_000_000;
+
+    for (const bac of [0, 1]) {
+      tt[o.i].nha = bac;
+      const kq = coTheXay(doc, o.i, "A", tien, 32, 12, 1);
+      assert.strictEqual(kq.ok, true, `vòng đầu phải xây được từ ${bac} nhà lên ${bac + 1}`);
+    }
+
+    tt[o.i].nha = 2;
+    assert.strictEqual(
+      coTheXay(doc, o.i, "A", tien, 32, 12, 1).ok, false,
+      "vòng đầu không được lên bậc 3 nhà",
+    );
+  });
+
   /* ------------------------------------------------- tự chơi hết một ván */
 
   /**

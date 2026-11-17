@@ -74,6 +74,12 @@ export const GameState = schema({
 
   xx1: t.uint8().default(0),
   xx2: t.uint8().default(0),
+  /**
+   * Tăng một đơn vị mỗi lần gieo. Client dựa vào nó để biết có lần tung mới
+   * mà chạy hoạt ảnh — nhìn riêng xx1/xx2 thì hai lần tung ra cùng số liên
+   * tiếp sẽ không phân biệt được.
+   */
+  soLanTung: t.uint16().default(0),
   /** Số lần tung ra đôi liên tiếp trong lượt này. */
   soLanDoi: t.uint8().default(0),
 

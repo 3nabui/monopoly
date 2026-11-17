@@ -50,6 +50,8 @@ export interface AnhChup {
   hanLuot: number;
   xx1: number;
   xx2: number;
+  /** Tăng mỗi lần gieo; client dựa vào nó để chạy hoạt ảnh xúc xắc. */
+  soLanTung: number;
   oChoQuyet: number;
   tienPhaiTra: number;
   hanhDong: string[];
@@ -87,6 +89,7 @@ export interface AnhChup {
 export function anhChupRong(): AnhChup {
   return {
     giaiDoan: "cho", luotCua: "", hanLuot: 0, xx1: 0, xx2: 0,
+    soLanTung: 0,
     oChoQuyet: -1, tienPhaiTra: 0, hanhDong: [], thongBao: "",
     tienCanGom: 0, kieuChon: "", oChonDuoc: [], nguoiChonDuoc: [], oDangTang: -1,
     congBo: "", congBoLoai: "", congBoAi: "", congBoSo: 0,
